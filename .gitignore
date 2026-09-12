@@ -1,0 +1,25 @@
+# Capture data: location history + device identifiers. Never commit.
+logs/
+*.kismet
+*.kismet-journal
+*.wiglecsv
+*.pcap
+*.pcapng
+*.kml
+
+# Secrets / per-device state
+kismet_httpd.conf
+*.apikey
+touch.json
+config/wardrive.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Dev artifacts
+screenshots/
+*.bak-*
