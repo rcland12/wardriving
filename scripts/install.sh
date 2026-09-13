@@ -41,7 +41,7 @@ log "apt packages"
 echo "kismet-common kismet-common/install-setuid boolean true" | debconf-set-selections
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-    gpsd gpsd-clients chrony \
+    gpsd gpsd-clients chrony fake-hwclock \
     python3 python3-pygame python3-evdev python3-requests \
     libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libgbm1 fonts-dejavu-core libdrm-tests \
     evtest git rsync curl libcap2-bin \
@@ -77,6 +77,31 @@ install -m 0644 "$REPO/system/chrony-gps.conf" /etc/chrony/conf.d/wardrive-gps.c
 systemctl disable --now systemd-timesyncd.service 2>/dev/null || true
 systemctl enable chrony.service
 systemctl restart chrony.service
+
+# No RTC: fake-hwclock restores the last saved time at boot and saves it at shutdown,
+# so the clock starts near "last time the Pi was on" instead of whenever
+# systemd-timesyncd last touched its clock file. The UI still waits for a real sync
+# (GPS or NTP) before capturing. (fake-hwclock >= 0.14 ships split units; the old
+# fake-hwclock.service is masked by the package on purpose.)
+install -d -m 0755 /etc/systemd/system/fake-hwclock-save.timer.d
+cat > /etc/systemd/system/fake-hwclock-save.timer.d/wardrive.conf <<'EOF'
+# Car power is often cut without a shutdown; save every 10 minutes, not hourly.
+[Timer]
+OnCalendar=
+OnCalendar=*:0/10
+EOF
+systemctl daemon-reload
+systemctl enable fake-hwclock-load.service fake-hwclock-save.service fake-hwclock-save.timer
+systemctl restart fake-hwclock-save.timer
+fake-hwclock save
+
+log "persistent journal"
+install -d -m 0755 /etc/systemd/journald.conf.d
+install -m 0644 "$REPO/system/journald-wardrive.conf" /etc/systemd/journald.conf.d/90-wardrive.conf
+install -d -m 2755 -g systemd-journal /var/log/journal
+systemd-tmpfiles --create --prefix /var/log/journal
+systemctl restart systemd-journald
+journalctl --flush
 
 # --- Kismet -------------------------------------------------------------------
 log "Kismet config"

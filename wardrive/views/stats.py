@@ -55,7 +55,7 @@ class StatsView(View):
         theme.blit_text(surf, "SOURCES", (8, y), 11, theme.DIM, bold=True)
         y += 18
         if not st.sources:
-            idle = st.capture in (Capture.IDLE, Capture.ERROR)
+            idle = st.capture in (Capture.IDLE, Capture.WAITING, Capture.ERROR)
             theme.blit_text(surf, "not capturing" if idle else "waiting for Kismet…", (8, y), 13, theme.DIM)
             return
         for s in st.sources:

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 class Capture(enum.Enum):
     IDLE = "idle"
+    WAITING = "waiting"  # START pressed; holding until the system clock is set (GPS or NTP)
     STARTING = "starting"
     RUNNING = "running"
     STOPPING = "stopping"

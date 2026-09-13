@@ -20,6 +20,11 @@ auth_file = "~/.kismet/kismet_httpd.conf"
 service = "wardrive-kismet.service"
 poll_seconds = 2.0
 
+[capture]
+# Hold START until chrony has set the clock from GPS or NTP. The Pi has no RTC, so
+# anything captured before that is stamped with a stale time.
+wait_for_clock = true
+
 [gps]
 host = "127.0.0.1"
 port = 2947

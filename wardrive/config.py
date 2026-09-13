@@ -35,6 +35,14 @@ class KismetConfig:
 
 
 @dataclass
+class CaptureConfig:
+    # The Pi has no RTC: after a boot away from Wi-Fi the clock is wrong until chrony
+    # takes time from the GPS. Capturing before then stamps every record with that
+    # wrong time, so START waits for a synced clock unless this is turned off.
+    wait_for_clock: bool = True
+
+
+@dataclass
 class GpsConfig:
     host: str = "127.0.0.1"
     port: int = 2947
@@ -71,6 +79,7 @@ class Config:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     touch: TouchConfig = field(default_factory=TouchConfig)
     kismet: KismetConfig = field(default_factory=KismetConfig)
+    capture: CaptureConfig = field(default_factory=CaptureConfig)
     gps: GpsConfig = field(default_factory=GpsConfig)
     upload: UploadConfig = field(default_factory=UploadConfig)
 

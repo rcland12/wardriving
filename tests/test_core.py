@@ -152,6 +152,65 @@ def test_gps_cold_start_diagnosis():
     assert diagnosis(g)[0].startswith("Cold start")
 
 
+def _backend_with_fake_clock(monkeypatch, sources):
+    """A real Backend whose clock reads come from `sources` and whose systemctl is stubbed."""
+    import wardrive.backend as backend_mod
+
+    readings = iter(sources)
+    last = {"v": sources[-1]}
+
+    def fake_clock():
+        last["v"] = next(readings, last["v"])
+        return last["v"]
+
+    calls = []
+    monkeypatch.setattr(backend_mod, "clock_source", fake_clock)
+    monkeypatch.setattr(backend_mod, "_sudo_systemctl", lambda *a, timeout: (calls.append(a) or (True, "")))
+    state = State()
+    b = backend_mod.Backend(config.Config(), state)
+    monkeypatch.setattr(b.kismet, "status", lambda: {"kismet.system.timestamp.sec": 1})
+    return b, state, calls
+
+
+def _wait_until(pred, timeout=5.0):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if pred():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_start_waits_for_clock_then_captures(monkeypatch):
+    b, state, calls = _backend_with_fake_clock(monkeypatch, ["unsynced", "unsynced", "GPS"])
+    b.start_capture()
+    assert state.capture in (Capture.STARTING, Capture.WAITING)  # set synchronously: no double start
+    assert _wait_until(lambda: state.capture == Capture.WAITING)
+    assert not calls  # Kismet not started while the clock is wrong
+    assert _wait_until(lambda: state.capture == Capture.RUNNING)
+    assert calls == [("start", "wardrive-kismet.service")]
+    assert any("Clock set from GPS" in e.text for e in state.events)
+
+
+def test_cancel_while_waiting_for_clock(monkeypatch):
+    b, state, calls = _backend_with_fake_clock(monkeypatch, ["unsynced"])
+    b.start_capture()
+    assert _wait_until(lambda: state.capture == Capture.WAITING)
+    b.stop_capture()
+    assert _wait_until(lambda: state.capture == Capture.IDLE)
+    assert not calls
+
+
+def test_synced_clock_or_disabled_wait_starts_immediately(monkeypatch):
+    b, state, calls = _backend_with_fake_clock(monkeypatch, ["NTP"])
+    b.start_capture()
+    assert _wait_until(lambda: state.capture == Capture.RUNNING)
+    b, state, calls = _backend_with_fake_clock(monkeypatch, ["unsynced"])
+    b.cfg.capture.wait_for_clock = False
+    b.start_capture()
+    assert _wait_until(lambda: state.capture == Capture.RUNNING)
+
+
 def test_log_session_started_is_local_time():
     s = LogSession("wardrive-20260912-20-04-41-1")
     assert len(s.started) == len("09/12 16:04")
@@ -282,6 +341,19 @@ def test_nav_switches_views(app):
         tap(app, button.rect.center)
         assert app.current.name == name
         app.draw(time.monotonic())  # every view renders without error
+
+
+def test_waiting_state_renders_and_cancel_button_works(app, monkeypatch):
+    calls = []
+    monkeypatch.setattr(app.backend, "stop_capture", lambda: calls.append("stop"))
+    app.state.capture = Capture.WAITING
+    app.state.sys.clock_source = "unsynced"
+    for name in ("nets", "stats", "gps", "log", "menu"):
+        app.show(name)
+        app.draw(time.monotonic())
+    assert app.nav[0].label() == "CANCEL" and app.nav[0].is_enabled()
+    tap(app, app.nav[0].rect.center)
+    assert calls == ["stop"]
 
 
 def test_shutdown_requires_hold(app, monkeypatch):

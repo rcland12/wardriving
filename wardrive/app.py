@@ -88,11 +88,15 @@ class App:
         def capture_label():
             return {
                 Capture.IDLE: "START",
+                Capture.WAITING: "CANCEL",
                 Capture.STARTING: "STARTING",
                 Capture.RUNNING: "STOP",
                 Capture.STOPPING: "STOPPING",
                 Capture.ERROR: "RETRY",
             }[st.capture]
+
+        def capture_sublabel():
+            return "for GPS time" if st.capture == Capture.WAITING else ""
 
         def capture_color():
             if st.capture == Capture.RUNNING:
@@ -102,7 +106,7 @@ class App:
             return theme.PANEL
 
         def capture_tap():
-            if st.capture == Capture.RUNNING:
+            if st.capture in (Capture.RUNNING, Capture.WAITING):
                 self.backend.stop_capture()
             elif st.capture in (Capture.IDLE, Capture.ERROR):
                 self.backend.start_capture()
@@ -112,6 +116,7 @@ class App:
 
         return [
             Button((x, y, w, 76), capture_label, capture_tap, size=20, color=capture_color,
+                   sublabel=capture_sublabel,
                    enabled=lambda: st.capture not in (Capture.STARTING, Capture.STOPPING)),
             Button((x, y + 80, half, 56), "NETS", lambda: self.show("nets"), size=13, active=nav("nets")),
             Button((x + half + 4, y + 80, half, 56), "STATS", lambda: self.show("stats"), size=13, active=nav("stats")),
@@ -167,6 +172,7 @@ class App:
         else:
             label, color = {
                 Capture.IDLE: ("IDLE", theme.DIM),
+                Capture.WAITING: ("GPS TIME…", theme.AMBER),
                 Capture.STARTING: ("STARTING…", theme.AMBER),
                 Capture.STOPPING: ("STOPPING…", theme.AMBER),
                 Capture.ERROR: ("ERROR", theme.RED),
@@ -182,7 +188,12 @@ class App:
         theme.blit_text(surf, gps_text, (250, cy), 13, color, bold=True, anchor="center")
 
         right = STATUS.right - 6
-        clock = theme.blit_text(surf, datetime.now().strftime("%H:%M"), (right, cy), 14, theme.TEXT, bold=True, anchor="midright")
+        # An unsynced clock is hours or days off after a boot away from Wi-Fi; don't show it as fact.
+        if st.sys.clock_source == "unsynced":
+            clock_text, clock_color = "--:--", theme.AMBER
+        else:
+            clock_text, clock_color = datetime.now().strftime("%H:%M"), theme.TEXT
+        clock = theme.blit_text(surf, clock_text, (right, cy), 14, clock_color, bold=True, anchor="midright")
         right = clock.left - 10
         s = st.sys
         if s.undervolt_now or s.throttled_now:
@@ -201,6 +212,8 @@ class App:
             text, color = st.upload_status, theme.AMBER
         elif st.capture == Capture.ERROR:
             text, color = st.capture_error or "Capture error", theme.RED
+        elif st.capture == Capture.WAITING:
+            text, color = "Clock not set. Capture starts when GPS time arrives (needs a fix).", theme.AMBER
         elif st.capture in (Capture.RUNNING, Capture.STOPPING):
             c = st.counts()
             text = f"Wi-Fi {c['wifi']:,} · BT {c['bt']:,} · open {c['OPEN']:,} · {st.packets_per_sec:.0f} pkt/s"
@@ -210,8 +223,10 @@ class App:
         elif st.summary:
             s = st.summary
             text = f"Last session {fmt.duration(s.duration)} · {s.wifi:,} Wi-Fi · {s.bt:,} BT"
+        elif st.sys.clock_source == "unsynced":
+            text = "Clock not set yet. START will wait for GPS time."
         elif not st.gps.has_fix:
-            text = "Waiting for GPS fix. You can START anyway."
+            text = "No GPS fix: networks found now won't have locations."
         else:
             text = "Ready. Tap START to begin."
         free = st.sys.disk_free_bytes

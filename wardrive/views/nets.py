@@ -83,6 +83,7 @@ class NetsView(View):
         if not rows:
             msg = {
                 Capture.IDLE: "Idle. Tap START to scan.",
+                Capture.WAITING: "Waiting for GPS time…",
                 Capture.STARTING: "Starting capture…",
                 Capture.RUNNING: "Scanning… nothing heard yet",
                 Capture.STOPPING: "Stopping…",

@@ -250,8 +250,9 @@ class UploadManager:
             try:
                 resp = requests.get(WIGLE_PROFILE_URL, auth=(w.api_name, w.api_token), timeout=15)
                 body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-                if resp.status_code == 200 and body.get("success"):
-                    lines.append(f"WiGLE: OK (user {body.get('userid', '?')})")
+                # 200 means the API name/token pair was accepted; don't depend on the body's shape.
+                if resp.status_code == 200 and body.get("success", True):
+                    lines.append(f"WiGLE: OK (user {body.get('userid') or body.get('user') or '?'})")
                 else:
                     lines.append(f"WiGLE: FAILED: HTTP {resp.status_code} {body.get('message', '')}".rstrip())
             except Exception as exc:

@@ -52,7 +52,11 @@ def online(timeout: float = 1.5) -> bool:
         return False
 
 
+SYNCED_CLOCK_SOURCES = ("GPS", "NTP")
+
+
 def clock_source() -> str:
+    """"GPS" or "NTP" when chrony has set the clock, "unsynced" if not, "" if unknown."""
     # chronyc -c tracking: refid,refname,stratum,...,leap status (last field)
     fields = _run("chronyc", "-c", "tracking").split(",")
     if len(fields) < 2:
@@ -80,9 +84,9 @@ class SysInfoPoller(threading.Thread):
                 s.disk_free_bytes = shutil.disk_usage(self.log_dir).free
             except OSError:
                 s.disk_free_bytes = 0
+            s.clock_source = clock_source()
             if tick % 3 == 0:  # every ~15 s
                 s.ip = primary_ip()
                 s.online = online() if s.ip else False
-                s.clock_source = clock_source()
             tick += 1
             time.sleep(self.interval)

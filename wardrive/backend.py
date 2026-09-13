@@ -12,7 +12,7 @@ from .config import Config
 from .gps import GpsClient
 from .kismet import KismetClient, KismetError
 from .state import Capture, State, Summary
-from .sysinfo import SysInfoPoller
+from .sysinfo import SYNCED_CLOCK_SOURCES, SysInfoPoller, clock_source
 from .uploads import UploadManager
 
 log = logging.getLogger(__name__)
@@ -47,6 +47,7 @@ class Backend:
         self.kismet = KismetClient(cfg.kismet.url, cfg.kismet.auth_file)
         self.uploads = UploadManager(cfg, state)
         self._busy = threading.Lock()  # serializes start/stop
+        self._cancel_wait = threading.Event()
         self._last_packets: tuple[float, int] | None = None
         self._last_msg_time = 0
         self._seen_source_errors: set[str] = set()
@@ -63,9 +64,14 @@ class Backend:
     def start_capture(self) -> None:
         if self.state.capture not in (Capture.IDLE, Capture.ERROR):
             return
+        self.state.capture = Capture.STARTING  # set now, so a double tap can't start twice
+        self._cancel_wait.clear()
         threading.Thread(target=self._do_start, name="capture-start", daemon=True).start()
 
     def stop_capture(self) -> None:
+        if self.state.capture == Capture.WAITING:
+            self._cancel_wait.set()  # _do_start notices and backs out
+            return
         if self.state.capture not in (Capture.RUNNING, Capture.STARTING, Capture.ERROR):
             return
         threading.Thread(target=self._do_stop, name="capture-stop", daemon=True).start()
@@ -78,9 +84,29 @@ class Backend:
 
     # --- internals -------------------------------------------------------------
 
+    def _wait_for_clock(self) -> bool:
+        """Hold until chrony reports a synced clock. False if the user cancelled."""
+        st = self.state
+        if not self.cfg.capture.wait_for_clock or clock_source() in SYNCED_CLOCK_SOURCES:
+            return True
+        st.capture = Capture.WAITING
+        st.log("warn", "Clock not set yet: waiting for GPS time before capturing")
+        while not self._cancel_wait.wait(1.0):
+            source = clock_source()
+            st.sys.clock_source = source
+            if source in SYNCED_CLOCK_SOURCES:
+                st.log("good", f"Clock set from {source}")
+                st.capture = Capture.STARTING
+                return True
+        st.capture = Capture.IDLE
+        st.log("info", "Capture cancelled while waiting for GPS time")
+        return False
+
     def _do_start(self) -> None:
         with self._busy:
             st = self.state
+            if not self._wait_for_clock():
+                return
             st.capture, st.capture_error = Capture.STARTING, ""
             st.reset_session()
             self._last_packets = None
@@ -141,6 +167,10 @@ class Backend:
 
     def _shutdown(self, action: str) -> None:
         def run():
+            if self.state.capture == Capture.WAITING:
+                self._cancel_wait.set()
+                with self._busy:  # let _do_start back out before powering off
+                    pass
             if self.state.capture in (Capture.RUNNING, Capture.STARTING):
                 self._do_stop()
             self.state.log("warn", f"System {action}")
