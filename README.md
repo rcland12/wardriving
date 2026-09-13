@@ -184,19 +184,56 @@ Cloudflare's body limit. Re-sending an identical file is harmless.
 
 ## Using it
 
-1. Power on. Wait for **GPS 3D** in the status bar. START works without a fix, but those
-   networks won't be in the WiGLE CSV.
-2. Tap **START**, then drive.
-3. Tap **STOP**. Kismet closes its logs, and a session summary pops up.
-4. At home on Wi-Fi, go to **MENU → UPLOAD** and tap **WIGLE** or **HOME SERVER**. Sessions
-   already uploaded are tracked per target.
-5. **MENU → hold SHUTDOWN** before cutting power. If a capture is still running, it's stopped
+1. Power on the screen and the Pi together. Put the GPS where it can see the sky.
+2. Tap **START**. Until the clock is set from GPS, the button shows **CANCEL / for GPS time**
+   and the status bar shows **GPS TIME…**. Capture starts as soon as the time is set, so every
+   record has a correct timestamp. At home on Wi-Fi, it starts immediately.
+3. Drive, then tap **STOP**. Kismet closes its logs, and a session summary pops up.
+4. **MENU → hold SHUTDOWN** before cutting power. If a capture is still running, it's stopped
    cleanly first.
+5. At home on Wi-Fi, go to **MENU → UPLOAD → HOME SERVER** to archive the session, then review
+   and publish it from the server (below).
 
 Get logs directly (never deletes anything):
 ```bash
 ./scripts/pull-logs.sh rustypi7      # -> ./logs/ (gitignored)
 ```
+
+### Review, repair, then publish to WiGLE
+
+Sessions go to your own server first, and nothing reaches WiGLE until you've reviewed it.
+`tools/wardrive_review.py` (standard library only) works on the server's session directory:
+
+```bash
+tools/wardrive_review.py list                 # sessions and status
+tools/wardrive_review.py check latest         # validate; exit code 1 on problems
+tools/wardrive_review.py fix latest           # write review/<session>.wiglecsv (originals untouched)
+tools/wardrive_review.py wigle latest --dry-run
+tools/wardrive_review.py wigle latest         # upload the reviewed file; refuses on FAIL or re-upload
+tools/wardrive_review.py wigle-status         # WiGLE processing status
+```
+
+`check` looks for:
+- **Clock changes mid-capture.** Stale and correct FirstSeen times get grouped into clusters,
+  and the offset is measured to ±1 s from the Kismet database's packet order.
+- **Wrong security type.** Each row is compared with what Kismet recorded for that BSSID.
+- Rows without coordinates, implausible times, GPS jumps, and duplicates.
+
+`fix` shifts (or, with `--drop-stale`, removes) rows with the wrong time, rebuilds AuthMode
+from the database, and removes duplicates.
+
+> **Kismet 2025.09 bug:** its live WiGLE CSV writer leaves out WPA/RSN details (every network
+> looks open) and marks every encrypted network as WPS. The Kismet database has the correct
+> values, and `fix` rebuilds them from it. Always run `fix` before uploading.
+
+Settings are in `~/.config/wardrive/review.env` (`chmod 600`):
+```
+WARDRIVE_DATA=/path/to/api/data/wardrive
+WIGLE_API_NAME=AID...        # wigle.net → Account → API Name
+WIGLE_API_TOKEN=...          # API Token (not "Encoded for use")
+WIGLE_DONATE=on              # allow WiGLE commercial use of your uploads
+```
+With this setup, leave `[upload.wigle]` on the Pi unconfigured.
 
 ---
 
@@ -234,7 +271,8 @@ wardrive/            touch UI package (python3 -m wardrive)
   views/             nets, stats, gps, log, menu, upload, calibrate
 config/              kismet_site.conf, wardrive.toml.example
 system/              systemd units, sudoers, NetworkManager/chrony/link files
-scripts/             install.sh, boot-config.sh, deploy.sh, pull-logs.sh
+scripts/             install.sh, boot-config.sh, deploy.sh, pull-logs.sh, display-test.sh
+tools/               wardrive_review.py (server-side review, repair and WiGLE upload)
 tests/               hardware-free tests
 docs/images/         screenshots (simulated data)
 ```
@@ -264,3 +302,14 @@ docs/images/         screenshots (simulated data)
 - Capture logs contain precise location history and nearby device identifiers. `logs/` and
   capture file types are gitignored. **This repo is public: keep it that way.**
 - Kismet REST credentials and upload tokens live only on the Pi.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Russell Land
+
+This project installs and talks to other software but doesn't include its code. Those
+projects keep their own licenses: [Kismet](https://www.kismetwireless.net/) (GPL-2.0, run as
+a separate service over its REST API), gpsd (BSD-2-Clause), chrony (GPL-2.0), and pygame
+(LGPL-2.1).

@@ -1,3 +1,0 @@
-Antenna: ALFA Network AWUS036ACM Long-Range Wide-Coverage Dual-Band AC1200 USB Wireless Wi-Fi Adapter w/High-Sensitivity External Antenna - Windows, MacOS & Kali Linux Supported
-GPS: GlobalSat BU-353N USB GPS Receiver, Black, Made in Taiwan
-Screen: OSOYOO 3.5 inch HDMI LCD Touch Screen Monitor Display TFT 480 * 320 Pixel Resolution for Raspberry Pi 5 4 3 Model B B+ 2 with Stylus Pen

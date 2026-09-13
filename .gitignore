@@ -10,6 +10,9 @@ logs/
 # Secrets / per-device state
 kismet_httpd.conf
 *.apikey
+wigle.txt
+*.env
+.secrets/
 touch.json
 config/wardrive.toml
 
