@@ -28,17 +28,20 @@ class MenuView(View):
     def __init__(self, app):
         super().__init__(app)
         x0, y0, w, h, gap = CONTENT.x + 4, CONTENT.y + 4, 178, 54, 4
+        w3 = (2 * w + gap - 2 * gap) // 3  # three buttons across the top row
         backend = app.backend
         self.buttons = [
-            Button((x0, y0, w, h), "UPLOAD", lambda: app.show("upload"), sublabel="WiGLE / home server"),
-            Button((x0 + w + gap, y0, w, h), "CALIBRATE", lambda: app.show("calibrate"), sublabel="touch screen"),
+            Button((x0, y0, w3, h), "SESSIONS", lambda: app.show("sessions"), sublabel="browse saved", size=14),
+            Button((x0 + w3 + gap, y0, w3, h), "UPLOAD", lambda: app.show("upload"), sublabel="WiGLE / home", size=14),
+            Button((x0 + 2 * (w3 + gap), y0, w3, h), "CALIBRATE", lambda: app.show("calibrate"), sublabel="touch", size=14),
+            Button((x0, y0 + h + gap, w3, h), "LOG", lambda: app.show("log"), sublabel="events", size=14),
             Button(
-                (x0, y0 + h + gap, w, h), "REBOOT", backend.reboot, hold=HOLD,
-                sublabel="hold 2 s", color=theme.PANEL,
+                (x0 + w3 + gap, y0 + h + gap, w3, h), "REBOOT", backend.reboot, hold=HOLD,
+                sublabel="hold 2 s", color=theme.PANEL, size=14,
             ),
             Button(
-                (x0 + w + gap, y0 + h + gap, w, h), "SHUTDOWN", self._shutdown, hold=HOLD,
-                sublabel=lambda: "hold 2 s · stops capture" if app.state.capture == Capture.RUNNING else "hold 2 s",
+                (x0 + 2 * (w3 + gap), y0 + h + gap, w3, h), "SHUTDOWN", self._shutdown, hold=HOLD, size=14,
+                sublabel=lambda: "stops capture" if app.state.capture == Capture.RUNNING else "hold 2 s",
                 color=theme.DARK_RED,
             ),
         ]

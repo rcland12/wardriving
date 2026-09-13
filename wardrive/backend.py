@@ -13,6 +13,7 @@ from .gps import GpsClient
 from .kismet import KismetClient, KismetError
 from .state import Capture, State, Summary
 from .sysinfo import SYNCED_CLOCK_SOURCES, SysInfoPoller, clock_source
+from .sessions import SessionLibrary
 from .uploads import UploadManager
 
 log = logging.getLogger(__name__)
@@ -46,6 +47,11 @@ class Backend:
         self.cfg, self.state = cfg, state
         self.kismet = KismetClient(cfg.kismet.url, cfg.kismet.auth_file)
         self.uploads = UploadManager(cfg, state)
+        self.sessions = SessionLibrary(
+            cfg.log_dir,
+            cfg.state_path / "sessions",
+            is_capturing=lambda: state.capture not in (Capture.IDLE, Capture.ERROR),
+        )
         self._busy = threading.Lock()  # serializes start/stop
         self._cancel_wait = threading.Event()
         self._last_packets: tuple[float, int] | None = None

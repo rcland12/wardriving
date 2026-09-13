@@ -8,6 +8,7 @@ import threading
 import time
 
 from .state import Capture, Device, Source, State, Summary, classify_crypt
+from .sessions import SavedDevice, SessionInfo, merge_devices
 from .uploads import LogSession
 
 SSIDS = [
@@ -26,10 +27,58 @@ def _mac() -> str:
     return ":".join(f"{random.randrange(256):02X}" for _ in range(6))
 
 
+class MockSessions:
+    """Three fake finished drives, generated deterministically."""
+
+    def __init__(self):
+        rng = random.Random(7)
+        base = time.time() - 3 * 86400
+        self._devices: dict[str, list[SavedDevice]] = {}
+        self._infos: list[SessionInfo] = []
+        shared = [_mac_rng(rng) for _ in range(40)]  # networks seen on more than one drive
+        for i, (minutes, count) in enumerate([(42, 180), (18, 90), (65, 260)]):
+            start = base + i * 86400 + 18 * 3600
+            devices = []
+            for j in range(count):
+                bt = rng.random() < 0.2
+                phy = "bt" if bt else "wifi"
+                crypt_raw = "" if bt else rng.choice(CRYPTS)
+                first = start + rng.uniform(0, minutes * 60)
+                devices.append(SavedDevice(
+                    key=f"k{i}-{j}", mac=shared[j] if j < len(shared) else _mac_rng(rng), phy=phy,
+                    name=rng.choice(BT_NAMES if bt else SSIDS), channel="FHSS" if bt else rng.choice(CHANNELS),
+                    crypt=classify_crypt(crypt_raw, phy), crypt_raw=crypt_raw, manuf=rng.choice(VENDORS),
+                    signal=0 if bt and rng.random() < 0.6 else rng.randint(-93, -41),
+                    first_seen=first, last_seen=first + rng.uniform(1, 120),
+                    lat=33.7560 + rng.uniform(-0.02, 0.02), lon=-84.3880 + rng.uniform(-0.02, 0.02),
+                    dev_type="BTLE" if bt else "Wi-Fi AP", packets=rng.randint(2, 400),
+                    frequency=0 if bt else 2437000, wps=not bt and rng.random() < 0.3,
+                ))
+            name = f"wardrive-mock-{i + 1}"
+            self._devices[name] = devices
+            self._infos.append(SessionInfo(
+                name=name, size=count * 9000, start=start, end=start + minutes * 60,
+                wifi=sum(d.phy == "wifi" for d in devices), bt=sum(d.phy == "bt" for d in devices),
+                open=sum(d.crypt == "OPEN" for d in devices), located=count,
+            ))
+
+    def sessions(self) -> list[SessionInfo]:
+        return list(reversed(self._infos))
+
+    def devices(self, name):
+        if name is not None:
+            return list(self._devices.get(name, []))
+        return merge_devices(list(self._devices.values()))
+
+
+def _mac_rng(rng: random.Random) -> str:
+    return ":".join(f"{rng.randrange(256):02X}" for _ in range(6))
+
+
 class MockUploads:
     def __init__(self, state: State):
         self.state = state
-        self._done = {("wardrive-20260910-22-15-03-1", "wigle")}
+        self._done = {("wardrive-20260910-22-15-03-1", "wigle"), ("wardrive-mock-3", "home")}
         self._sessions = [
             LogSession("wardrive-20260912-01-02-11-1", wigle_rows=1843, size=18_400_000),
             LogSession("wardrive-20260911-23-40-52-1", wigle_rows=652, size=6_100_000),
@@ -70,6 +119,7 @@ class MockBackend:
     def __init__(self, cfg, state: State):
         self.cfg, self.state = cfg, state
         self.uploads = MockUploads(state)
+        self.sessions = MockSessions()
 
     def start(self) -> None:
         st = self.state
@@ -155,8 +205,8 @@ class MockBackend:
         g.last_report = time.monotonic()
         g.mode, g.sats_used, g.sats_seen, g.hdop = 3, 9, 14, 0.9
         g.satellites = [(p, max(12.0, 47 - i * 2.6), i < 9) for i, p in enumerate([5, 13, 15, 18, 23, 24, 29, 10, 26, 2, 7, 16, 20, 31])]
-        g.lat = 39.8283 + 0.01 * math.sin(t / 120)
-        g.lon = -98.5795 + 0.01 * math.cos(t / 120)
+        g.lat = 33.7560 + 0.01 * math.sin(t / 120)
+        g.lon = -84.3880 + 0.01 * math.cos(t / 120)
         g.alt, g.speed, g.track = 96.0, 15.6, (t * 3) % 360
         g.time = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
 

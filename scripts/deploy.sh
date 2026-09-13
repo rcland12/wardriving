@@ -26,7 +26,8 @@ done
 STAGE=.cache/wardrive-src   # relative to the remote user's home
 echo "==> syncing to $HOST:~/$STAGE"
 rsync -az --delete --mkpath \
-    --exclude .git --exclude logs/ --exclude screenshots/ --exclude '__pycache__' \
+    --exclude .git --exclude logs/ --exclude screenshots/ --exclude '__pycache__' --exclude .pytest_cache \
+    --exclude /notes/ --exclude /case/ --exclude wigle.txt --exclude '*.env' --exclude '*.map' --exclude '*.osm.pbf' \
     "$REPO/" "$HOST:$STAGE/"
 
 if (( UI_ONLY )); then

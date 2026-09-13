@@ -1,0 +1,330 @@
+# =====================================================================
+#  WARDRIVING CASE - MEASUREMENT SHEET
+#  All units: MILLIMETRES. All angles: DEGREES.
+#  Decimals welcome (calipers give you 0.01 - keep 2 places).
+#
+#  Measured from a Raspberry Pi 4B + OSOYOO 3.5" HDMI LCD (with its rigid
+#  HDMI adapter) and the cables used in the build. The values the model is
+#  actually built from live in the PARAMS table of scripts/fusion_build.py;
+#  this sheet is the input they were folded in from, and some `src:` tags
+#  still say datasheet/MEASURE. scripts/sync_params.py lists which.
+#
+#  HOW TO USE
+#    - Every entry has  value:  and  src:
+#    - src: datasheet  -> a published/typical number, not yet verified.
+#                         VERIFY it with calipers, then set src: measured
+#    - src: MEASURE    -> unknown; must be measured before building.
+#    - src: choice     -> A design decision, change if you want.
+#    - Leave `value: null` if you truly can't get it and add a note.
+#
+#  MEASURING CONVENTION FOR PORTS  (read this once, saves confusion)
+#    Look at the board face-up. Pick the corner named as ORIGIN.
+#    Measure along that edge to the CENTRE of the connector opening.
+#    That is `ctr`. Then measure the connector's own opening w/h, and
+#    how far its body sticks out past the PCB edge (`out`).
+#    IMPORTANT: for anything you plug a cable into, also measure the
+#    CABLE's plastic overmold - the hole has to clear the plug, not
+#    just the port. Those are the `*_plug_*` fields.
+# =====================================================================
+
+meta:
+  project: wardriving-case
+  units: mm
+  nozzle: 0.40
+  material: PLA
+  layer_height: 0.20
+
+# ---------------------------------------------------------------------
+# A. RASPBERRY PI 4B  -  board itself
+#    Pre-filled from the official mechanical drawing. Please spot-check
+#    the four hole positions at minimum; everything mounts off those.
+# ---------------------------------------------------------------------
+pi_board:
+  length: { value: 85.00, src: datasheet } # long edge
+  width: { value: 56.00, src: datasheet } # short edge
+  pcb_thickness: { value: 1.40, src: datasheet }
+
+  # Mounting holes. ORIGIN = the corner nearest the USB-C power jack.
+  # Holes sit 3.5mm in from both edges, spanning 58 x 49.
+  hole_dia: { value: 2.75, src: datasheet } # M2.5 clearance
+  hole_inset_long: { value: 3.50, src: datasheet } # from the 85mm edges
+  hole_inset_short: { value: 3.50, src: datasheet } # from the 56mm edges
+  hole_span_long: { value: 58.00, src: datasheet }
+  hole_span_short: { value: 49.00, src: datasheet }
+
+  # Tallest = the stacked USB-A pair, NOT the ethernet jack. Measure from
+  # the PCB top face to the top of the USB metal can.
+  top_component_h: { value: 15.60, src: MEASURE }
+  # Solder tails + SD slot body hanging BELOW the PCB.
+  under_component_h: { value: 2.00, src: MEASURE }
+
+  # GPIO header block: 2x20 @ 2.54 pitch.
+  gpio_len: { value: 50.80, src: datasheet }
+  gpio_wid: { value: 5.10, src: datasheet }
+  gpio_h_above_pcb: { value: 8.60, src: MEASURE } # plastic + pin tip
+  gpio_ctr_from_end: { value: 32.50, src: MEASURE } # along the 85mm edge, from ORIGIN corner
+
+# ---------------------------------------------------------------------
+# B. PI PORTS - POWER / VIDEO EDGE
+#    This is the 85mm long edge opposite the GPIO header.
+#    In your build this edge points DOWN.
+#    ORIGIN = the corner where this edge meets the microSD short edge.
+#    (i.e. the far end from the USB-A cluster)
+# ---------------------------------------------------------------------
+pi_bottom_edge:
+  usbc:
+    ctr: { value: 11.20, src: datasheet }
+    open_w: { value: 9.50, src: datasheet } # port opening
+    open_h: { value: 3.60, src: datasheet }
+    out: { value: 1.50, src: datasheet } # body past PCB edge
+    plug_w: { value: 10.92, src: measured } # YOUR cable's overmold width
+    plug_h: { value: 6.17, src: measured } # YOUR cable's overmold height
+  hdmi0:
+    ctr: { value: 26.00, src: datasheet }
+    open_w: { value: 7.00, src: datasheet }
+    open_h: { value: 3.20, src: datasheet }
+    out: { value: 1.50, src: datasheet }
+  hdmi1:
+    ctr: { value: 39.50, src: datasheet }
+    open_w: { value: 7.00, src: datasheet }
+    open_h: { value: 3.20, src: datasheet }
+    out: { value: 1.50, src: datasheet }
+  av_jack:
+    ctr: { value: 54.00, src: datasheet }
+    dia: { value: 6.60, src: datasheet }
+    out: { value: 2.00, src: datasheet }
+    needed: { value: false, src: choice } # cut a hole for it? true/false
+
+# ---------------------------------------------------------------------
+# C. PI PORTS - USB-A / ETHERNET EDGE
+#    The 56mm short edge. This becomes a vertical SIDE of your case.
+#    ORIGIN = the corner shared with the power/video edge above.
+#    Your GPS dongle and wifi antenna live here.
+# ---------------------------------------------------------------------
+pi_usb_edge:
+  ethernet:
+    ctr: { value: 10.25, src: datasheet }
+    open_w: { value: 16.00, src: datasheet }
+    open_h: { value: 13.50, src: datasheet }
+    out: { value: 3.00, src: datasheet }
+    needed: { value: false, src: choice }
+  usb3_pair:
+    ctr: { value: 29.00, src: datasheet }
+    open_w: { value: 15.00, src: datasheet }
+    open_h: { value: 16.00, src: datasheet }
+    out: { value: 2.50, src: datasheet }
+  usb2_pair:
+    ctr: { value: 47.00, src: datasheet }
+    open_w: { value: 15.00, src: datasheet }
+    open_h: { value: 16.00, src: datasheet }
+    out: { value: 2.50, src: datasheet }
+
+# ---------------------------------------------------------------------
+# D. microSD SLOT
+#    Underside of the board, on the short edge OPPOSITE the USB cluster.
+#    ORIGIN = the corner shared with the power/video edge.
+#    The case uses a slit here, so this one must be accurate.
+# ---------------------------------------------------------------------
+pi_sd:
+  ctr: { value: 28.00, src: MEASURE } # along the 56mm edge from ORIGIN
+  slot_w: { value: 14.00, src: MEASURE } # width of the metal slot body
+  below_pcb: { value: 1.60, src: MEASURE } # how far the slot hangs under the PCB
+  card_stickout: { value: 2.00, src: MEASURE } # how far the card sticks out when seated
+
+# ---------------------------------------------------------------------
+# E. THE LCD  -  no reliable datasheet; verify everything with calipers.
+#    Take the display OFF the Pi to measure it, then measure the
+#    assembled stack height separately (stack: below).
+#    ORIGIN for the LCD = the corner that lines up with the Pi's
+#    ORIGIN corner when it's plugged on. Note which one that is.
+# ---------------------------------------------------------------------
+lcd:
+  model_name: { value: "Osoyoo 3.5in HDMI LCD 480x320", src: measured }
+  pcb_length: { value: 85.00, src: datasheet }
+  pcb_width: { value: 56.00, src: datasheet }
+  pcb_thickness: { value: 1.60, src: datasheet }
+
+  # The glass / visible picture. Measure the LIT area, not the glass.
+  # 480x320 is 3:2. The standard 3.5in panel for this res is 73.44 x 48.96.
+  active_w: { value: 73.44, src: datasheet }
+  active_h: { value: 48.96, src: datasheet }
+  # Offset from the LCD PCB's ORIGIN corner to the active area's
+  # bottom-left corner. This decides where the bezel window is cut.
+  # !! These assume the panel is perfectly centred on the PCB. It usually
+  # !! ISN'T - these boards shift the panel away from the GPIO socket.
+  # !! This is the #1 thing to verify. 1mm off = black bar over your pixels.
+  active_off_x: { value: 2.52, src: measured }
+  active_off_y: { value: 3.78, src: measured }
+
+  # How much bare PCB border is there around the glass for the bezel
+  # lip to grip WITHOUT covering pixels? Measure the smallest side.
+  # Derived from the above: (56 - 48.96)/2 = 3.52 on the short sides.
+  bezel_grip_avail: { value: 2.50, src: choice }
+
+  # Glass/panel height above the LCD PCB front face.
+  panel_h: { value: 5.40, src: measured } # derived: 24.40 - 1.4 - 16.00 - 1.6
+
+  # The PHYSICAL GLASS OUTLINE - the whole panel slab, not the lit part.
+  # Always bigger than the active area. The bezel lip has to clear this
+  # while still landing on PCB, and on your board there is only ~3.5mm of
+  # margin per side, so this decides whether the lip works at all.
+  # Placeholders below are active + 3mm, i.e. a guess. Please measure.
+  glass_w: { value: 84.13, src: measured }
+  glass_h: { value: 54.82, src: measured }
+  glass_off_x: { value: 0.0, src: measured } # from ORIGIN corner
+  glass_off_y: { value: 0.0, src: measured }
+
+  # Mounting holes in the LCD PCB, if it has them.
+  has_holes: { value: false, src: measured } # true / false
+  hole_dia: { value: null, src: MEASURE }
+  hole_span_x: { value: null, src: MEASURE }
+  hole_span_y: { value: null, src: MEASURE }
+  hole_inset_x: { value: null, src: MEASURE } # from ORIGIN corner
+  hole_inset_y: { value: null, src: MEASURE }
+
+  # The LCD's own USB-C power port.
+  usbc_edge: { value: left, src: measured } # which edge: top/bottom/left/right as mounted
+  usbc_ctr: { value: 10.97, src: measured } # from ORIGIN along that edge
+  usbc_open_w: { value: 9.02, src: measured }
+  usbc_open_h: { value: 3.43, src: measured }
+  usbc_out: { value: 0, src: measured }
+
+  # The LCD's HDMI input port.
+  hdmi_edge: { value: bottom, src: measured }
+  hdmi_ctr: { value: null, src: MEASURE }
+  hdmi_open_w: { value: null, src: MEASURE }
+  hdmi_open_h: { value: null, src: MEASURE }
+  hdmi_out: { value: null, src: MEASURE }
+
+  # Anything else on the edges the case could otherwise cover: switches, pots,
+  # touch controller, backlight jumper. List them free-form.
+  obstructions: { value: null, src: MEASURE }
+
+# ---------------------------------------------------------------------
+# F. THE ASSEMBLED STACK  -  measure with LCD plugged onto the Pi
+#    This is the single most important number for case depth.
+# ---------------------------------------------------------------------
+stack:
+  # Pi PCB top face  ->  LCD PCB bottom face. (the header standoff gap)
+  # HIGHEST PRIORITY MEASUREMENT. Drives the whole case depth.
+  # Your 85x56 display overhangs the Pi's USB-A stack, which is ~15.6mm
+  # tall, so this MUST be more than that or the board would be resting on
+  # your USB ports. 17 is a floor-value placeholder, not a spec.
+  gap_pi_to_lcd: { value: 16.00, src: measured }
+  # Pi PCB BOTTOM face -> LCD front glass. Total sandwich thickness.
+  total_thickness: { value: 24.40, src: measured }
+  # Does the LCD PCB overhang the Pi board on any edge? How much, which?
+  overhang_notes: { value: 0, src: measured }
+
+# ---------------------------------------------------------------------
+# G. THE HDMI ADAPTER  -  the bit sticking out
+#    Measure it plugged in, in its final routed position.
+# ---------------------------------------------------------------------
+hdmi_adapter:
+  type: { value: "rigid plug", src: measured } # rigid plug / short ribbon cable / L-shaped
+  # Bounding box of the adapter once seated in the Pi's micro-HDMI.
+  body_l: { value: 10.34, src: measured }
+  body_w: { value: 18.65, src: measured }
+  body_h: { value: 16.15, src: measured }
+  # How far past the Pi's PCB edge does the whole thing reach?
+  reach_past_edge: { value: 10.34, src: measured }
+  which_hdmi: { value: 0, src: measured } # plugs into hdmi0 or hdmi1?
+  near_side_a: { value: 21.33, src: measured } # ORIGIN -> adapter near side
+  far_side_b: { value: 40.20, src: measured } # ORIGIN -> adapter far side
+
+# ---------------------------------------------------------------------
+# H. YOUR USB DEVICES  -  so the port openings actually clear them
+#    Measure the plug end, at its widest.
+# ---------------------------------------------------------------------
+usb_devices:
+  gps:
+    body_w: { value: 16.50, src: measured }
+    body_h: { value: 9.00, src: measured }
+    body_l: { value: null, src: MEASURE } # how far it sticks out
+  antenna:
+    body_w: { value: 16.50, src: measured }
+    body_h: { value: 9.00, src: measured }
+    body_l: { value: null, src: MEASURE }
+    # Wifi adapters are often much fatter than the plug. If yours has
+    # a big body or an RP-SMA stub, say so here.
+    notes: { value: null, src: MEASURE }
+  # Both plugs fit in the blue USB3 stack at the same time (tested).
+
+# ---------------------------------------------------------------------
+# I. THE CAR  -  console, arm, clearances
+#    Rough numbers are fine here, +/- 2mm won't hurt anything.
+# ---------------------------------------------------------------------
+car:
+  console_flat_w: { value: null, src: MEASURE } # usable flat width for the base
+  console_flat_d: { value: null, src: MEASURE } # usable depth (front to back)
+  # Degrees off horizontal, phone level works. NO LONGER BLOCKING - the base
+  # tilt joint absorbs the slope, so no wedge is needed. Still useful for
+  # confirming the tilt range covers it.
+  console_slope: { value: null, src: MEASURE }
+  # With the shifter in EVERY gear, what's the closest it gets to
+  # where the arm will stand? The arm must stay behind this.
+  shifter_clear: { value: null, src: MEASURE }
+  # Straight-line distance from the base location to the cigarette
+  # lighter socket. The cords used in the build are 1ft = 304.8mm TOTAL.
+  # NOTE: the LCD needs its own USB-C too, so that's TWO cords and
+  # TWO charger ports. Check both reach before changing the arm height.
+  dist_to_charger: { value: null, src: MEASURE }
+  # Pivot-to-pivot length of the arm. With the base joint added, the base pivot
+  # sits 25mm up, so 130 here puts the top pivot at 155mm above the console -
+  # about 6 inches overall, same as before.
+  arm_height: { value: 206.20, src: choice }  # 130 + 76.2 (3 in), 2026-09-13
+  base_l: { value: 90.00, src: choice }
+  base_w: { value: 80.00, src: choice }
+
+# ---------------------------------------------------------------------
+# J. HARDWARE  -  screw/nut sizes the holes are designed around
+# ---------------------------------------------------------------------
+hardware:
+  # M3 THROUGHOUT - nothing else needed.
+  # The Pi is NOT screwed down: its holes are 2.75mm and an M3 won't pass.
+  # It sits on 4 locating pegs and the bezel clamps it. No Pi screws.
+  bezel_screw: { value: "M3", src: choice }
+  bezel_screw_len: { value: 30.00, src: choice } # M3 x 30: ear nut pockets are sunk to suit
+  tilt_bolt: { value: "M3", src: choice }
+  tilt_bolt_len: { value: 30.00, src: choice } # M3 x 30 socket head; head presses into the knob
+  plate_screw_case_len: { value: 8.00, src: choice }  # M3 x 8 x8: knuckle foot to case back (4) + top tilt plate to knuckle (4)
+  plate_screw_base_len: { value: 12.00, src: choice }  # M3 x 12, tapped 10mm into the base wall (no M3 x 10 on hand)
+  # Measure one of YOUR nuts and washers - brands vary.
+  m3_nut_across_flats: { value: 5.50, src: MEASURE }
+  m3_nut_thickness: { value: 2.40, src: MEASURE }
+  m3_washer_od: { value: 7.00, src: MEASURE }
+  washers: { value: "flat washer under each knob; no lock washers", src: choice }  # lock washers bite into PLA and it creeps - they do not lock
+  m3_head_dia: { value: 5.50, src: MEASURE } # your screw head
+  m3_head_type: { value: null, src: MEASURE } # socket cap / pan / countersunk
+  # Heat-set inserts give far better thread life in PLA than screwing
+  # straight into plastic. Do you have them / an insert tip?
+  heatset_inserts: { value: null, src: MEASURE } # true / false
+  heatset_od: { value: null, src: MEASURE } # if yes, outer dia
+  heatset_len: { value: null, src: MEASURE }
+
+# ---------------------------------------------------------------------
+# K. PRINT FIT  -  don't change unless your printer runs tight/loose
+# ---------------------------------------------------------------------
+fit:
+  port_clearance: { value: 0.60, src: choice } # added around every port opening
+  board_clearance: { value: 0.40, src: choice } # around PCB edges in the pocket
+  wall_thickness: { value: 2.40, src: choice } # 6 perimeters at 0.4
+  floor_thickness: { value: 6.00, src: choice }
+  hole_shrink_comp: { value: 0.20, src: choice } # holes print undersize; this is added
+
+# ---------------------------------------------------------------------
+# L. LCD BUTTONS  -  the LAST measurement blocking the case
+#    Two buttons on the LCD board's BOTTOM edge, on its Pi-facing side,
+#    near the ORIGIN corner. PWR is nearer the corner, BKL further in.
+#    a / b = ORIGIN -> near / far side of the button body, along the edge.
+#    The model currently uses PHOTO ESTIMATES:
+#      PWR centre 2.9, BKL centre 14.7, tip past edge 0.5, centre below board 1.5
+# ---------------------------------------------------------------------
+lcd_buttons:
+  type: { value: push, src: measured } # push (clicks + springs back) or slide?
+  pwr_a: { value: 3.78, src: measured }
+  pwr_b: { value: 6.59, src: measured }
+  bkl_a: { value: 14.00, src: measured }
+  bkl_b: { value: 17.94, src: measured }
+  tip_out: { value: 0.63, src: measured } # button tip past the LCD board edge (0 = flush)
+  ctr_below: { value: 2.00, src: measured } # button centre below the LCD board's back face

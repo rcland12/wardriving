@@ -107,6 +107,7 @@ journalctl --flush
 log "Kismet config"
 install -m 0644 "$REPO/config/kismet_site.conf" /etc/kismet/kismet_site.conf
 install -d -o "$WD_USER" -g "$WD_USER" -m 0750 "$DATA_DIR" "$DATA_DIR/logs"
+install -d -o "$WD_USER" -g "$WD_USER" -m 0755 "$DATA_DIR/maps"   # offline maps: scripts/push-map.sh
 
 # REST API credentials: generated once, readable only by the wardrive user.
 KIS_DIR="$WD_HOME/.kismet"

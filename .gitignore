@@ -26,6 +26,15 @@ venv/
 # Private working notes (plans, infra details) - local only
 notes/
 
+# Offline map data (build from OpenStreetMap with tools/build_map.py)
+*.map
+*.osm.pbf
+*.staging.sqlite
+
 # Dev artifacts
 screenshots/
 *.bak-*
+
+# Case: sliced G-code is specific to one printer + profile (share via a Release if needed).
+# Build logs (case/logs/) are covered by logs/ above.
+*.gcode

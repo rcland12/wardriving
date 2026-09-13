@@ -18,13 +18,18 @@ from .views import FOOTER, NAV, STATUS, Modal, View
 from .views.calibrate import CalibrateView
 from .views.gps import GpsView, fix_label
 from .views.log import LogView
+from .views.map import MapView
 from .views.menu import MenuView
 from .views.nets import NetsView
 from .views.stats import StatsView
+from .views.sessions import SessionNetsView, SessionsView
 from .views.upload import UploadView
 from .widgets import Button
 
 log = logging.getLogger(__name__)
+
+# Screens reached from MENU keep the MENU nav button highlighted.
+MENU_CHILDREN = ("upload", "sessions", "session_nets", "log")
 
 
 class SummaryModal(Modal):
@@ -58,6 +63,7 @@ class App:
             for v in (
                 NetsView(self), StatsView(self), GpsView(self), LogView(self),
                 MenuView(self), UploadView(self), CalibrateView(self),
+                SessionsView(self), SessionNetsView(self), MapView(self),
             )
         }
         self.current: View = self.views["nets"]
@@ -112,7 +118,7 @@ class App:
                 self.backend.start_capture()
 
         def nav(name):
-            return lambda: self.current.name == name or (name == "menu" and self.current.name == "upload")
+            return lambda: self.current.name == name or (name == "menu" and self.current.name in MENU_CHILDREN)
 
         return [
             Button((x, y, w, 76), capture_label, capture_tap, size=20, color=capture_color,
@@ -121,7 +127,7 @@ class App:
             Button((x, y + 80, half, 56), "NETS", lambda: self.show("nets"), size=13, active=nav("nets")),
             Button((x + half + 4, y + 80, half, 56), "STATS", lambda: self.show("stats"), size=13, active=nav("stats")),
             Button((x, y + 140, half, 56), "GPS", lambda: self.show("gps"), size=13, active=nav("gps")),
-            Button((x + half + 4, y + 140, half, 56), "LOG", lambda: self.show("log"), size=13, active=nav("log")),
+            Button((x + half + 4, y + 140, half, 56), "MAP", lambda: self.show("map"), size=13, active=nav("map")),
             Button((x, y + 200, w, 58), "MENU", lambda: self.show("menu"), size=15, active=nav("menu")),
         ]
 
@@ -294,6 +300,26 @@ class App:
         for name in ("nets", "stats", "gps", "log", "menu", "upload", "calibrate"):
             self.show(name)
             snap(name)
+        self.show("sessions")
+        self.current.loader.wait()
+        snap("sessions")
+        sessions = self.views["sessions"].loader.result or []
+        if sessions:
+            from .views.sessions import session_title
+
+            self.views["session_nets"].open(sessions[0].name, session_title(sessions[0]))
+            self.show("session_nets")
+            self.current.loader.wait()
+            snap("session-networks")
+        map_view = self.views["map"]
+        self.show("map")
+        map_view.update(time.monotonic())  # centre on the simulated GPS fix
+        snap("map-live")
+        map_view.show_session(None, "All sessions")
+        map_view.loader.wait()
+        self.draw(time.monotonic())  # first frame loads the dots and centres on them
+        map_view.vp.zoom = 15
+        snap("map-saved")
         self.show("nets")
         rows = self.views["nets"].rows()
         if rows:

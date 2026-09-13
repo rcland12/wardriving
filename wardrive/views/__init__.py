@@ -78,9 +78,12 @@ class Modal:
         x, y = self.rect.x + 16, self.rect.y + 12
         theme.blit_text(surf, theme.fit(self.title, 18, self.rect.w - 32, bold=True), (x, y), 18, bold=True)
         y += 32
-        for label, value, color in self.lines():
+        lines = self.lines()
+        # Fit every row above the "tap to close" hint (8 rows at 22 px; tighter beyond that).
+        step = min(22, (self.rect.bottom - 24 - y) // max(1, len(lines)))
+        for label, value, color in lines:
             theme.blit_text(surf, label, (x, y), 13, theme.DIM)
             v = theme.fit(value, 14, self.rect.w - 130)
             theme.blit_text(surf, v, (x + 96, y), 14, color)
-            y += 22
+            y += step
         theme.blit_text(surf, "tap to close", (self.rect.centerx, self.rect.bottom - 8), 11, theme.DIM, anchor="midbottom")

@@ -35,6 +35,13 @@ class KismetConfig:
 
 
 @dataclass
+class MapConfig:
+    # Offline map files built by tools/build_map.py. The first *.map here is used.
+    dir: str = "/var/lib/wardrive/maps"
+    default_zoom: int = 16
+
+
+@dataclass
 class CaptureConfig:
     # The Pi has no RTC: after a boot away from Wi-Fi the clock is wrong until chrony
     # takes time from the GPS. Capturing before then stamps every record with that
@@ -80,6 +87,7 @@ class Config:
     touch: TouchConfig = field(default_factory=TouchConfig)
     kismet: KismetConfig = field(default_factory=KismetConfig)
     capture: CaptureConfig = field(default_factory=CaptureConfig)
+    map: MapConfig = field(default_factory=MapConfig)
     gps: GpsConfig = field(default_factory=GpsConfig)
     upload: UploadConfig = field(default_factory=UploadConfig)
 

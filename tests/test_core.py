@@ -337,7 +337,7 @@ def test_start_button_starts_capture(app, monkeypatch):
 
 
 def test_nav_switches_views(app):
-    for button, name in zip(app.nav[1:], ["nets", "stats", "gps", "log", "menu"]):
+    for button, name in zip(app.nav[1:], ["nets", "stats", "gps", "map", "menu"]):
         tap(app, button.rect.center)
         assert app.current.name == name
         app.draw(time.monotonic())  # every view renders without error
@@ -387,7 +387,7 @@ def test_row_tap_opens_detail_modal(app):
     app.show("nets")
     view = app.current
     view._cache_time = 0
-    row_y = view.scroll.rect.y + 5
+    row_y = view.list.scroll.rect.y + 5
     tap(app, (100, row_y))
     assert app.modal is not None
     tap(app, (10, 10))
