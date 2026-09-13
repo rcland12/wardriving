@@ -71,6 +71,9 @@ a brim. Rotate it 45° in the slicer; diagonally it needs only 212 mm.
 **The stylus tube** on the bezel prints as a plain vertical cylinder rising from the bed
 alongside the button tabs, so it needs nothing special.
 
+**The case back's 23 vent slots** are vertical, so each one only bridges its 3 mm width.
+They need no supports. If a slot top sags slightly, it doesn't matter structurally.
+
 ## Suggested order
 
 1. **Both tilt plates first.** They're small, and two of them mesh face to face, so you

@@ -19,14 +19,26 @@ DARK_RED = (110, 28, 28)
 DARK_GREEN = (22, 84, 38)
 AMBER_DARK = (92, 66, 12)
 
+# Network security colors. Chosen to stay distinct with red-green (deutan, protan) and
+# blue-yellow (tritan) color vision deficiency, checked by simulation, and never used alone:
+# the map also gives each a shape (maprender.MARKER_SHAPES) and lists print the label.
+SEC_OPEN = (255, 221, 0)  # yellow
+SEC_WEAK = (220, 90, 30)  # orange: WEP and WPA
+SEC_WPA2 = (40, 120, 230)  # blue
+SEC_WPA3 = (235, 235, 235)  # white
+SEC_BT = (230, 110, 190)  # pink
+
 CRYPT_COLORS = {
-    "OPEN": RED,
-    "WEP": AMBER,
-    "WPA": AMBER,
-    "WPA2": GREEN,
-    "WPA3": BLUE,
-    "BT": PURPLE,
+    "OPEN": SEC_OPEN,
+    "WEP": SEC_WEAK,
+    "WPA": SEC_WEAK,
+    "WPA2": SEC_WPA2,
+    "WPA3": SEC_WPA3,
+    "BT": SEC_BT,
 }
+
+# Signal strength by brightness rather than hue: strong, medium, weak.
+SIGNAL_STRONG, SIGNAL_MEDIUM, SIGNAL_WEAK = TEXT, (170, 177, 187), (105, 112, 122)
 
 LEVEL_COLORS = {"info": TEXT, "good": GREEN, "warn": AMBER, "error": RED}
 

@@ -204,6 +204,10 @@ PARAMS = [
     ("stylus_tube_l", "22 mm", "mm", "tube length back from the bezel front face"),
     ("stylus_x", "-(stylus_bore / 2 + stylus_wall + 0.8 mm)", "mm", "tube centre, case x: just outside the left wall, 0.8mm clear"),
     ("stylus_y", "case_out_w - 10 mm", "mm", "tube centre, case y: top-left, below the corner ear"),
+    ("vent_w", "3 mm", "mm", "vent slot width (vertical slots: bridges only this when printing)"),
+    ("vent_rib", "3 mm", "mm", "minimum solid rib between slots and around any existing opening"),
+    ("vent_band", "2 mm", "mm", "solid band kept above the floor and below the rim"),
+    ("vent_corner", "8 mm", "mm", "solid wall kept at each corner (ears carry the bezel screws)"),
 ]
 
 HELPERS = r'''
@@ -483,8 +487,60 @@ sk=newsk()
 for kx in (kxb-P('kn_sx1'), kxb-P('kn_sx2')):
     for yk in (kyc-ksy, kyc+ksy): circ(sk,kx,yk,P('m3_tap'))
 cut(N,sk,0,P('case_tap_d'))
+# ---- Ventilation: vertical slots through the walls at the height of the hot gap
+# between the Pi and the LCD. Vertical so each slot only bridges its own width when
+# the case prints back-down. Enforced: ribs >= vent_rib, solid bands >= vent_band
+# at floor and rim, >= vent_corner at corners, >= vent_rib from every opening.
+# Right wall skipped (USB2 stack + ethernet jack sit against it); floor untouched
+# (it carries the mount load through the knuckle).
+vw=P('vent_w'); vrb=P('vent_rib'); vbd=P('vent_band'); vcn=P('vent_corner'); vpitch=vw+vrb
+def vslots(lo,hi):
+    n=int(math.floor((hi-lo+vrb)/vpitch))
+    if n<=0: return []
+    span=n*vw+(n-1)*vrb; s0=lo+(hi-lo-span)/2.0+vw/2.0
+    return [s0+k*vpitch for k in range(n)]
+def vfree(lo,hi,blocked):
+    segs=[(lo,hi)]
+    for b0,b1 in sorted(blocked):
+        nxt=[]
+        for s0,s1 in segs:
+            if b1<=s0 or b0>=s1: nxt.append((s0,s1)); continue
+            if b0>s0: nxt.append((s0,b0))
+            if b1<s1: nxt.append((b1,s1))
+        segs=nxt
+    return [(a,b) for a,b in segs if b-a>=vw]
+vzlo=FT+vbd; vzhi=RH-vbd
+if vzhi-vzlo < 8: raise RuntimeError('vent slots would be too short')
+vents={'top':0,'bottom':0,'left':0}; varea=0.0
+# top wall (GPIO edge): only the corners to avoid
+for a,b in vfree(vcn,OL-vcn,[]):
+    for sc in vslots(a,b):
+        sk=newsk(); rect(sk,sc-vw/2,OW-W-1,sc+vw/2,OW+1); cut(N,sk,vzlo,vzhi-vzlo)
+        vents['top']+=1; varea+=vw*(vzhi-vzlo)
+# bottom wall (power edge): clear of the USB-C hole, both flex-tab notches and the hood
+ucx=PX+P('usbc_ctr'); ucw=max(P('usbc_w'),P('usbc_plug_w'))+2*FP
+hd0=PX+P('adp_a')-P('adp_clr')-W; hd1=PX+P('adp_b')+P('adp_clr')+W
+vblk=[(ucx-ucw/2-vrb,ucx+ucw/2+vrb),(hd0-vrb,hd1+vrb)]
+for key in ('btn_pwr_ctr','btn_bkl_ctr'):
+    bc_,tc_,n0_,n1_=tabgeom(key)
+    vblk.append((tc_-P('tab_w')/2-P('tab_slit')-vrb, tc_+P('tab_w')/2+P('tab_slit')+vrb))
+for a,b in vfree(vcn,OL-vcn,vblk):
+    for sc in vslots(a,b):
+        sk=newsk(); rect(sk,sc-vw/2,-1,sc+vw/2,W+1); cut(N,sk,vzlo,vzhi-vzlo)
+        vents['bottom']+=1; varea+=vw*(vzhi-vzlo)
+# left wall: clear of the LCD power notch and the stylus tube outside; above the SD slit
+vlcy=PY+P('lcd_usbc_ctr'); vlw=P('lcd_usbc_plug_w')+2*FP
+vsod=P('stylus_bore')+2*P('stylus_wall'); vsyc=P('stylus_y')
+vblk=[(vlcy-vlw/2-vrb,vlcy+vlw/2+vrb),(vsyc-vsod/2-vrb,vsyc+vsod/2+vrb)]
+vzlo_l=max(vzlo,(PCT-PT)+0.6+vbd)
+for a,b in vfree(vcn,OW-vcn,vblk):
+    for sc in vslots(a,b):
+        sk=newsk(); rect(sk,-1,sc-vw/2,W+1,sc+vw/2); cut(N,sk,vzlo_l,vzhi-vzlo_l)
+        vents['left']+=1; varea+=vw*(vzhi-vzlo_l)
+if sum(vents.values())==0: raise RuntimeError('no vent slots placed')
 place(N,0.0,0.0)
 r=report(N); r['ear_nut_d']=round(P('ear_nut_d'),2)
+r['vent_slots']=vents; r['vent_open_mm2']=round(varea)
 return r
 '''
 

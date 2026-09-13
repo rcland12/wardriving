@@ -9,7 +9,7 @@ import pygame
 
 from .. import fmt, theme
 from ..mapdata import find_map, lonlat_to_world, meters_per_pixel, world_to_lonlat
-from ..maprender import DotLayer, MapRenderer, Viewport
+from ..maprender import MARKER_LEGEND, DotLayer, MapRenderer, Viewport, draw_marker
 from ..touch import TouchEvent
 from ..widgets import SLOP, Button
 from . import CONTENT, View
@@ -56,7 +56,10 @@ class MapView(View):
             Button((right, AREA.y + 6 + BTN + 6, BTN, BTN), "−", lambda: self.zoom_by(-1), size=22),
             Button((right, AREA.y + 6 + 2 * (BTN + 6), BTN, BTN), "◎", self.recenter, size=18,
                    active=lambda: self.follow),
+            Button((right, AREA.y + 6 + 3 * (BTN + 6), BTN, 28), "KEY", self.toggle_key, size=11,
+                   active=lambda: self.show_key),
         ]
+        self.show_key = False
 
     # --- modes -------------------------------------------------------------------
 
@@ -66,6 +69,9 @@ class MapView(View):
         self.follow = False
         self._centered_once = False
         self._start_load()
+
+    def toggle_key(self) -> None:
+        self.show_key = not self.show_key
 
     def toggle_mode(self) -> None:
         if self.mode == "live":
@@ -207,14 +213,7 @@ class MapView(View):
         sx, sy = self.vp.to_screen(*lonlat_to_world(g.lon, g.lat))
         center = (int(sx), int(sy))
         if g.has_fix:
-            if g.speed > 1:
-                a = math.radians(g.track)
-                tip = (sx + 13 * math.sin(a), sy - 13 * math.cos(a))
-                left = (sx + 6 * math.sin(a - 2.4), sy - 6 * math.cos(a - 2.4))
-                right = (sx + 6 * math.sin(a + 2.4), sy - 6 * math.cos(a + 2.4))
-                pygame.draw.polygon(surf, theme.BLUE, [tip, left, right])
-            pygame.draw.circle(surf, (255, 255, 255), center, 7)
-            pygame.draw.circle(surf, theme.BLUE, center, 5)
+            draw_position(surf, center, g.track if g.speed > 1 else None)
         else:
             pygame.draw.circle(surf, theme.DIM, center, 6, 2)
 
@@ -243,7 +242,40 @@ class MapView(View):
         theme.blit_text(surf, label, (x0, y0 - 3), 10, theme.TEXT, anchor="bottomleft")
         if self.map is not None:
             theme.blit_text(surf, self.map.attribution, (AREA.right - 4, AREA.bottom - 2), 9, theme.DIM, anchor="bottomright")
-        theme.blit_text(surf, f"z{self.vp.zoom}", (AREA.right - BTN - 6 + BTN // 2, AREA.y + 6 + 3 * (BTN + 6) + 2), 10, theme.DIM, anchor="midtop")
+        theme.blit_text(surf, f"z{self.vp.zoom}", (AREA.right - BTN - 6 + BTN // 2, AREA.y + 6 + 3 * (BTN + 6) + 32), 10, theme.DIM, anchor="midtop")
+        if self.show_key:
+            self._draw_key(surf)
+
+    def _draw_key(self, surf: pygame.Surface) -> None:
+        rows = [*MARKER_LEGEND, ("YOU", "You")]
+        box = pygame.Rect(AREA.x + 6, 0, 104, 10 + 17 * len(rows))
+        box.bottom = AREA.bottom - 22
+        pygame.draw.rect(surf, (0, 0, 0), box, border_radius=6)
+        pygame.draw.rect(surf, theme.BORDER, box, 1, border_radius=6)
+        for i, (kind, label) in enumerate(rows):
+            cy = box.y + 13 + 17 * i
+            if kind == "YOU":
+                draw_position(surf, (box.x + 14, cy), None, small=True)
+            else:
+                draw_marker(surf, kind, (box.x + 14, cy), 5)
+            theme.blit_text(surf, label, (box.x + 28, cy), 12, theme.TEXT, anchor="midleft")
+
+
+def draw_position(surf: pygame.Surface, center: tuple[int, int], heading: float | None, small: bool = False) -> None:
+    """Your position: a white and black target, with a heading arrow when moving."""
+    x, y = center
+    if heading is not None:
+        a = math.radians(heading)
+        tip = (x + 15 * math.sin(a), y - 15 * math.cos(a))
+        left = (x + 7 * math.sin(a - 2.5), y - 7 * math.cos(a - 2.5))
+        right = (x + 7 * math.sin(a + 2.5), y - 7 * math.cos(a + 2.5))
+        pygame.draw.polygon(surf, (0, 0, 0), [tip, left, right])
+        pygame.draw.polygon(surf, (255, 255, 255), [tip, left, right], 2)
+    r = 6 if small else 8
+    pygame.draw.circle(surf, (0, 0, 0), center, r + 1)
+    pygame.draw.circle(surf, (255, 255, 255), center, r)
+    pygame.draw.circle(surf, (0, 0, 0), center, r - 3)
+    pygame.draw.circle(surf, (255, 255, 255), center, max(1, r - 6))
 
 
 _NICE_DISTANCES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000]

@@ -10,11 +10,11 @@ from . import CONTENT, View
 
 TILES = [
     ("wifi", "WI-FI", theme.TEXT),
-    ("bt", "BLUETOOTH", theme.PURPLE),
-    ("OPEN", "OPEN", theme.RED),
-    ("WEP", "WEP", theme.AMBER),
-    ("WPA2", "WPA/WPA2", theme.GREEN),
-    ("WPA3", "WPA3", theme.BLUE),
+    ("bt", "BLUETOOTH", theme.SEC_BT),
+    ("OPEN", "OPEN", theme.SEC_OPEN),
+    ("WEP", "WEP", theme.SEC_WEAK),
+    ("WPA2", "WPA/WPA2", theme.SEC_WPA2),
+    ("WPA3", "WPA3", theme.SEC_WPA3),
 ]
 
 

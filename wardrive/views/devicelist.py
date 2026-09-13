@@ -26,10 +26,10 @@ def signal_color(dbm: int):
     if dbm == 0:
         return theme.DIM
     if dbm >= -60:
-        return theme.GREEN
+        return theme.SIGNAL_STRONG
     if dbm >= -75:
-        return theme.AMBER
-    return theme.RED
+        return theme.SIGNAL_MEDIUM
+    return theme.SIGNAL_WEAK
 
 
 class DeviceList:

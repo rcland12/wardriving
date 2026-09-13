@@ -56,7 +56,7 @@ Reference photos of the Pi + screen stack the case was measured from are in
 
 | Body | Qty | Size (mm) | Print orientation | Notes |
 |---|---|---|---|---|
-| `01_case_back` | 1 | 108.6 × 79.6 × 25.4 | back face down | Pi pocket, port openings, open back, 4 corner ears, adapter hood |
+| `01_case_back` | 1 | 108.6 × 79.6 × 25.4 | back face down | Pi pocket, port openings, open back, 23 vent slots, 4 corner ears, adapter hood |
 | `02_case_bezel` | 1 | 111.3 × 79.6 × 22.0 | **flip: front face down** | 9.5 thick; flex-button tabs hang 4.1 below it; stylus tube at top-left reaches 22 back from the face |
 | `03_tilt_plate` | **2** | 36 × 44 × 7.8 | teeth up | One on the case, one on the base |
 | `04_arm` | 1 | 246.2 × 40 × 15.8 | **lying flat, rotated 45° on the bed** | Toothed hub at both ends. Too long to lie straight on a 225 mm bed |
@@ -193,6 +193,30 @@ enough to flex safely in PLA. BKL is only 3.4 mm from the HDMI adapter, so its t
 shifted 0.74 mm away from the hood while its wedge stays on the button. The build
 script refuses to run if a wedge can't cover a button's centre by at least ±0.75 mm.
 
+### Ventilation
+
+The Pi's processor faces the screen, so it sits in the 16 mm gap between the Pi and the
+LCD — the hot pocket. The open back only vents the underside of the Pi's circuit board,
+which blocks that air from the processor, so the vents go through the **walls, at the
+height of that gap**: 23 vertical slots, 3 mm wide, about 1030 mm² of opening.
+
+| Wall | Slots | Notes |
+|---|---|---|
+| Top (GPIO edge) | 13 | Mounted, this edge faces up: the exhaust |
+| Bottom (power edge) | 6 | Right of the adapter hood: the intake. The rest of that wall is the power jack, button notches and hood |
+| Left | 4 | Between the LCD power notch and the stylus tube, above the SD slit |
+| Right | 0 | The USB2 stack and ethernet jack sit against it inside; the USB3 notch is already open |
+
+With the GPIO edge up and the power edge down, hot air rises through the gap and out the
+top — a chimney.
+
+**Structure is protected by rules the build enforces:** at least 3 mm of solid rib
+between slots and around every existing opening, a 2 mm solid band along the floor and the
+rim (the bezel clamps down on the rim), 8 mm of solid wall at each corner (the ears carry
+the bezel screws), and **no slots in the floor**, which carries the whole mount's weight
+through the knuckle. Slots are vertical so each one only bridges its 3 mm width when the
+case back prints.
+
 ### Stylus holder
 
 A round tube just outside the bezel's top-left edge, below the corner ear, with its axis
@@ -268,6 +292,7 @@ The most useful parameters in its `PARAMS` table:
 |---|---|---|---|
 | `arm_h` | 206.2 mm | Arm length, pivot to pivot. Every 10 mm added raises the cord exit by 10 mm | arm only |
 | `stylus_bore` | 5.2 mm | Stylus tube bore. Smaller = firmer grip on the 4.88 mm barrel | bezel only |
+| `vent_w` / `vent_rib` | 3 mm / 3 mm | Vent slot width and the solid rib between slots. Slot count adjusts automatically | case back only |
 | `nub_gap` | 0.3 mm | Flex-button wedge to button. Lower it if a button doesn't click, raise it if one is held down | bezel only |
 | `adp_hood` | 1 | 0 = open notch instead of a hood (the adapter then pokes ~5 mm out of the case) | case back, bezel |
 | `usb2_open` | 0 | 1 = also open the USB2 port stack | case back |

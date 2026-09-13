@@ -409,6 +409,42 @@ def _longest_visible_segment(pts: np.ndarray, w: int, h: int, margin: int = 6):
 # --- network dots ------------------------------------------------------------------------
 
 
+# Each security type has a shape as well as a color, so dots can be told apart without
+# relying on color vision.
+MARKER_SHAPES = {"OPEN": "triangle", "WEP": "diamond", "WPA": "diamond", "WPA2": "circle", "WPA3": "square", "BT": "plus"}
+MARKER_LEGEND = [("OPEN", "Open"), ("WEP", "WEP / WPA"), ("WPA2", "WPA2"), ("WPA3", "WPA3"), ("BT", "Bluetooth")]
+OUTLINE = (0, 0, 0)
+
+
+def draw_marker(surf: pygame.Surface, crypt: str, center: tuple[int, int], r: int) -> None:
+    """One network marker: shape and color by security type, outlined in black."""
+    color = theme.CRYPT_COLORS.get(crypt, theme.TEXT)
+    shape = MARKER_SHAPES.get(crypt, "circle")
+    x, y = center
+    if shape == "circle":
+        pygame.draw.circle(surf, OUTLINE, center, r + 1)
+        pygame.draw.circle(surf, color, center, r)
+    elif shape == "square":
+        k = r - 1
+        pygame.draw.rect(surf, OUTLINE, (x - k - 1, y - k - 1, 2 * k + 3, 2 * k + 3))
+        pygame.draw.rect(surf, color, (x - k, y - k, 2 * k + 1, 2 * k + 1))
+    elif shape == "diamond":
+        k = r + 1
+        pygame.draw.polygon(surf, OUTLINE, [(x, y - k - 1), (x + k + 1, y), (x, y + k + 1), (x - k - 1, y)])
+        pygame.draw.polygon(surf, color, [(x, y - k), (x + k, y), (x, y + k), (x - k, y)])
+    elif shape == "triangle":
+        k = r
+        pygame.draw.polygon(surf, OUTLINE, [(x, y - k - 2), (x + k + 2, y + k + 1), (x - k - 2, y + k + 1)])
+        pygame.draw.polygon(surf, color, [(x, y - k), (x + k, y + k), (x - k, y + k)])
+    else:  # plus
+        w = 3 if r >= 5 else 2
+        arm = r + 1
+        for rect in ((x - arm, y - w // 2, 2 * arm + 1, w), (x - w // 2, y - arm, w, 2 * arm + 1)):
+            pygame.draw.rect(surf, OUTLINE, pygame.Rect(rect).inflate(2, 2))
+        for rect in ((x - arm, y - w // 2, 2 * arm + 1, w), (x - w // 2, y - arm, w, 2 * arm + 1)):
+            pygame.draw.rect(surf, color, rect)
+
+
 class DotLayer:
     """Screen positions of devices for drawing and tap hit-testing."""
 
@@ -440,15 +476,11 @@ class DotLayer:
         vis = np.nonzero((sx >= -4) & (sx <= vp.w + 4) & (sy >= -4) & (sy <= vp.h + 4))[0]
         self._screen = np.column_stack([sx, sy])
         self._visible_idx = vis
-        radius = 3 if vp.zoom < 16 else 4
+        radius = 4 if vp.zoom < 16 else 5
         # Draw open networks last so they sit on top.
         order = sorted(vis.tolist(), key=lambda i: self.devices[i].crypt == "OPEN")
         for i in order:
-            d = self.devices[i]
-            color = theme.CRYPT_COLORS.get(d.crypt, theme.TEXT)
-            center = (int(sx[i]), int(sy[i]))
-            pygame.draw.circle(surf, (0, 0, 0), center, radius + 1)
-            pygame.draw.circle(surf, color, center, radius)
+            draw_marker(surf, self.devices[i].crypt, (int(sx[i]), int(sy[i])), radius)
         return len(vis)
 
     def nearest(self, pos: tuple[int, int], max_px: float = 14):

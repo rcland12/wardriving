@@ -42,8 +42,8 @@ class SummaryModal(Modal):
         return [
             ("Duration", fmt.duration(s.duration), theme.TEXT),
             ("Wi-Fi APs", fmt.count(s.wifi), theme.TEXT),
-            ("Open", fmt.count(s.open), theme.RED),
-            ("Bluetooth", fmt.count(s.bt), theme.PURPLE),
+            ("Open", fmt.count(s.open), theme.SEC_OPEN),
+            ("Bluetooth", fmt.count(s.bt), theme.SEC_BT),
             ("WiGLE log", files, theme.DIM),
             ("", "Upload later from MENU → UPLOAD", theme.DIM),
         ]
@@ -382,8 +382,10 @@ class App:
         map_view.show_session(None, "All sessions")
         map_view.loader.wait()
         self.draw(time.monotonic())  # first frame loads the dots and centres on them
-        map_view.vp.zoom = 15
+        map_view.vp.zoom = 16
+        map_view.show_key = True
         snap("map-saved")
+        map_view.show_key = False
         self.show("nets")
         rows = self.views["nets"].rows()
         if rows:
