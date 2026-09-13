@@ -1,0 +1,9 @@
+# Give the capture adapter a stable name, independent of USB enumeration order.
+# Installed to /etc/systemd/network/10-wardrive-alfa.link.
+# mt76x2u = MediaTek MT7612U (ALFA AWUS036ACM). Change Driver= for other adapters.
+[Match]
+Driver=mt76x2u
+Type=wlan
+
+[Link]
+Name=alfa0

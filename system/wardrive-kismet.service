@@ -1,0 +1,21 @@
+[Unit]
+Description=Wardrive capture (Kismet)
+Wants=gpsd.service
+After=network.target gpsd.service
+
+[Service]
+Type=simple
+User=@USER@
+# Capture helpers get their privileges from file capabilities + the kismet group.
+# Pi OS soft-blocks the onboard Bluetooth radio by default ("+" = run as root, "-" = ignore failure).
+ExecStartPre=+-/usr/sbin/rfkill unblock bluetooth
+ExecStart=/usr/bin/kismet --no-ncurses --no-line-wrap
+# SIGINT lets Kismet flush and close its log files cleanly.
+KillSignal=SIGINT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+[Install]
+# Deliberately not enabled: capture is started from the touch UI.
+WantedBy=multi-user.target

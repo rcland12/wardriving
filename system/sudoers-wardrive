@@ -1,0 +1,7 @@
+# Let the unprivileged touch UI control capture and power. Nothing else.
+# Installed to /etc/sudoers.d/wardrive (validated with visudo -cf).
+@USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl start wardrive-kismet.service, \
+                            /usr/bin/systemctl stop wardrive-kismet.service, \
+                            /usr/bin/systemctl restart wardrive-kismet.service, \
+                            /usr/bin/systemctl poweroff, \
+                            /usr/bin/systemctl reboot

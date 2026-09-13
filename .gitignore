@@ -20,6 +20,9 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Private working notes (plans, infra details) - local only
+notes/
+
 # Dev artifacts
 screenshots/
 *.bak-*

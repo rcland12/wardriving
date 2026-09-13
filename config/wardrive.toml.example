@@ -1,0 +1,49 @@
+# Wardrive UI settings. Installed to /etc/wardrive/wardrive.toml on first install
+# (never overwritten afterwards). Every key is optional; defaults are shown.
+# This file holds upload credentials on the Pi. Do not commit your real copy.
+
+units = "imperial"                     # or "metric"
+log_dir = "/var/lib/wardrive/logs"     # must match log_prefix in kismet_site.conf
+
+[display]
+backend = "fbdev"                      # "fbdev" (/dev/fb0) or "kmsdrm" (black on the OSOYOO HDMI panel)
+rotate = 180                           # 0 or 180 (HDMI connector pointing down = 180)
+fps = 15
+
+[touch]
+device_name = "ADS7846 Touchscreen"
+calibration_file = "~/.config/wardrive/touch.json"
+
+[kismet]
+url = "http://127.0.0.1:2501"
+auth_file = "~/.kismet/kismet_httpd.conf"
+service = "wardrive-kismet.service"
+poll_seconds = 2.0
+
+[gps]
+host = "127.0.0.1"
+port = 2947
+
+[upload.wigle]
+# API name + token from https://wigle.net/account (the "Encoded for use" pair is NOT needed)
+enabled = false
+api_name = ""
+api_token = ""
+donate = false                         # allow WiGLE to share the data commercially
+
+[upload.home]
+# Each session file is gzipped and POSTed as a raw body:
+#   POST <url>?session=<session>&file=<name>.gz
+#   Content-Type: application/gzip, X-Content-SHA256: <hex>
+# plus every header in [upload.home.headers], and "Authorization: Bearer <token>"
+# when token is set. Check credentials with: python3 -m wardrive --test-upload
+enabled = false
+label = "Home server"
+url = ""                               # e.g. "https://api.example.com/wardrive/upload"
+token = ""
+
+[upload.home.headers]
+# Cloudflare Access service token for this device (Zero Trust > Access > Service Auth).
+# The Client ID includes the trailing ".access".
+# CF-Access-Client-Id = "xxxxxxxx.access"
+# CF-Access-Client-Secret = "xxxxxxxx"

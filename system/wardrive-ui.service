@@ -1,0 +1,26 @@
+[Unit]
+Description=Wardrive touch UI
+After=systemd-user-sessions.service gpsd.service
+Wants=gpsd.service
+# Take over tty1 instead of the login prompt.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=/opt/wardrive
+# Display backend (fbdev by default) is chosen in /etc/wardrive/wardrive.toml.
+Environment=PYTHONUNBUFFERED=1 PYGAME_HIDE_SUPPORT_PROMPT=1
+ExecStart=/usr/bin/python3 -m wardrive
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
