@@ -55,8 +55,10 @@ class LogSession:
 class UploadManager:
     TARGETS = ("wigle", "home")
 
-    def __init__(self, cfg: Config, state: State):
+    def __init__(self, cfg: Config, state: State, demo: bool = False):
         self.cfg, self.state = cfg, state
+        # Demo mode: home uploads go to the server's separate demo folder; WiGLE is off.
+        self.demo = demo
         self.log_dir = Path(cfg.log_dir)
         self.record_path = cfg.state_path / "uploads.json"
         self._lock = threading.Lock()
@@ -107,11 +109,19 @@ class UploadManager:
         return target in self._load_record().get(session, {})
 
     def enabled(self, target: str) -> bool:
+        if target == "wigle" and self.demo:
+            return False
         if target == "wigle":
             w = self.cfg.upload.wigle
             return w.enabled and bool(w.api_name and w.api_token)
         h = self.cfg.upload.home
         return h.enabled and bool(h.url)
+
+    def unavailable(self, target: str) -> str:
+        """Why a target can't be used right now, or ""."""
+        if target == "wigle" and self.demo:
+            return "off in demo"
+        return "" if self.enabled(target) else "not configured"
 
     def label(self, target: str) -> str:
         return "WiGLE" if target == "wigle" else self.cfg.upload.home.label
@@ -140,12 +150,20 @@ class UploadManager:
             st.upload_busy = True
             try:
                 if not self.enabled(target):
-                    st.upload_status = f"{self.label(target)} not configured"
+                    reason = "is off in demo mode" if self.unavailable(target) == "off in demo" else "not configured"
+                    st.upload_status = f"{self.label(target)} {reason}"
                     return
                 todo = self.pending(target)
                 if not todo:
                     st.upload_status = f"{self.label(target)}: nothing to upload"
                     return
+                if target == "home" and self.demo:
+                    try:
+                        self._check_demo_support()
+                    except Exception as exc:
+                        st.upload_status = f"{self.label(target)}: {exc}"
+                        st.log("error", st.upload_status)
+                        return
                 ok = 0
                 for i, session in enumerate(todo, 1):
                     st.upload_status = f"{self.label(target)}: {i}/{len(todo)} {session.name}"
@@ -186,13 +204,27 @@ class UploadManager:
             headers["Authorization"] = f"Bearer {h.token}"
         return headers
 
+    def _check_demo_support(self) -> None:
+        """Refuse demo uploads unless the server keeps them apart.
+
+        A server without demo support ignores demo=1 and would file simulated sessions
+        with real ones, so ask first: a supporting server echoes "demo": true.
+        """
+        resp = requests.get(
+            urljoin(self.cfg.upload.home.url, "/wardrive/sessions"), params={"demo": "1"},
+            headers=self._home_headers(), timeout=15, allow_redirects=False,
+        )
+        if _api_result(resp, "wardrive/sessions").get("demo") is not True:
+            raise RuntimeError("server has no demo folder yet (update the home API); nothing sent")
+
     def _home(self, session: LogSession) -> None:
         """Gzip each session file and POST it as a raw body.
 
         Protocol (the /wardrive/upload endpoint of the home API):
           POST <url>?session=<session>&file=<name>.gz
           Content-Type: application/gzip, X-Content-SHA256: <hex of the gzip>
-        Re-sending an identical file is harmless (the server answers 200).
+        Re-sending an identical file is harmless (the server answers 200). In demo mode
+        the query adds demo=1, and the server keeps those files apart from real sessions.
         """
         h = self.cfg.upload.home
         tmp_dir = self.cfg.state_path / "tmp"
@@ -213,7 +245,7 @@ class UploadManager:
                 gz_file.seek(0)
                 resp = requests.post(
                     h.url,
-                    params={"session": session.name, "file": f.name + ".gz"},
+                    params={"session": session.name, "file": f.name + ".gz", **({"demo": "1"} if self.demo else {})},
                     headers={
                         **self._home_headers(),
                         "Content-Type": "application/gzip",
@@ -224,7 +256,9 @@ class UploadManager:
                     timeout=(15, 600),
                     allow_redirects=False,
                 )
-            _api_result(resp, f.name)
+            body = _api_result(resp, f.name)
+            if self.demo and body.get("demo") is not True:
+                raise RuntimeError(f"{f.name}: server did not store it as demo data")
 
     def test_connections(self) -> list[str]:
         """Check credentials for each configured target without uploading anything."""

@@ -96,7 +96,7 @@ also rotate everything drawn on the screen, and the app already flips its own fr
 | <img src="docs/images/sessions.png" width="360"> | <img src="docs/images/session-networks.png" width="360"> |
 | <img src="docs/images/map-live.png" width="360"> | <img src="docs/images/map-saved.png" width="360"> |
 
-*(Screenshots use simulated data.)*
+*(Screenshots use [demo mode](#demo-mode).)*
 
 | View | Shows |
 |------|-------|
@@ -104,7 +104,7 @@ also rotate everything drawn on the screen, and the app already flips its own fr
 | **STATS** | Wi-Fi, BT, and per-security counts, duration, distance, packets/s, Kismet RAM, free disk, capture source health. |
 | **GPS** | Fix type, satellites, HDOP, lat/lon, altitude, speed, heading, GPS time, clock source. |
 | **MAP** | Offline street map (see [Install an offline map](#5-install-an-offline-map-optional)). **LIVE** follows your GPS position and plots networks as they're located; **SAVED** plots a finished session or all of them. Dots are colored by security, with open networks on top. Drag to pan, **+**/**−** to zoom, **◎** to re-center and follow. Tap a dot for details. |
-| **MENU** | SESSIONS, UPLOAD, CALIBRATE touch, LOG, REBOOT and SHUTDOWN (hold 2 s), IP address, internet, power, temp, disk. |
+| **MENU** | SESSIONS, UPLOAD, CALIBRATE touch, LOG, [DEMO](#demo-mode) (hold 2 s), REBOOT and SHUTDOWN (hold 2 s), IP address, internet, power, temp, disk. |
 | **LOG** | App and Kismet events (source errors, GPS fix gained or lost, start/stop). Tap for full text. |
 | **SESSIONS** | Finished capture sessions (date, duration, Wi-Fi/BT/open counts, whether archived), plus "All sessions" with each network listed once. Tap one to browse every network it recorded: WIFI/BT filter, sort by strongest signal, name or newest, and tap for details (security and WPS, frequency, strongest signal, packets, sessions seen in, location). **MAP** shows them on the map. |
 | **UPLOAD** | Finished sessions with GPS row counts and upload state; one button each for WiGLE and your home server. |
@@ -252,6 +252,53 @@ map screen.
 
 ---
 
+## Demo mode
+
+Try everything indoors, with no GPS signal and no real networks: **MENU → hold DEMO**.
+The UI restarts with a **DEMO** badge in the status bar, and:
+
+- **GPS** gets a simulated fix at your demo start point.
+- **START** drives a simulated car along the offline map's real roads. The network list,
+  stats and live map fill up as it hears the routers in nearby houses and businesses. With
+  no map installed, it drives a plain street grid instead.
+- **STOP** saves the drive as `.kismet` and `.wiglecsv` files, so SESSIONS, MAP and UPLOAD
+  all work on it.
+- **SESSIONS** starts with 8 simulated past drives from the last three weeks: short errands,
+  longer loops around town, and one trip to another city. The same streets have the same
+  routers on every drive, so "All sessions" shows networks seen more than once. One drive
+  starts with the clock wrong, like a real boot away from Wi-Fi.
+- **UPLOAD → HOME SERVER** sends demo sessions to a separate `_demo` folder on the server.
+  If the server doesn't support that yet, the Pi refuses and sends nothing.
+- **WiGLE uploads are off** in demo mode. Every demo file is marked as simulated, and
+  `tools/wardrive_review.py` won't send marked files to WiGLE.
+
+**MENU → hold DEMO** again deletes the demo data and switches back. Your real logs, upload
+records and settings aren't touched in either direction. Everything demo mode writes is
+under `/var/lib/wardrive/demo/`.
+
+Set the start point to a public spot in your town in `/etc/wardrive/wardrive.toml`:
+```toml
+[demo]
+lat = 33.7490
+lon = -84.3880
+```
+
+The same controls work from SSH:
+```bash
+./scripts/demo.sh on           # create demo data (about 20 s on a Pi 4), restart the UI
+./scripts/demo.sh status
+./scripts/demo.sh regenerate   # new simulated drives
+./scripts/demo.sh off          # delete demo data, back to real capture
+```
+
+On a desktop, `python -m wardrive --mock --window` runs demo mode with its own data in
+`~/.local/state/wardrive/mock-demo`.
+
+On the server, review demo uploads with `tools/wardrive_review.py --demo list` (and `check`
+or `fix`). They make good practice for the clock-step and security repairs.
+
+---
+
 ## Using it
 
 1. Power on the screen and the Pi together. Put the GPS where it can see the sky.
@@ -316,8 +363,8 @@ The UI runs anywhere pygame does, using a simulated backend:
 ```bash
 source ~/.global_venv/bin/activate
 pip install pygame requests pytest
-python -m wardrive --mock --window                # desktop window, mouse = touch
-python -m wardrive --screenshot docs/images       # render every screen to PNG (headless)
+python -m wardrive --mock --window                # demo mode in a desktop window, mouse = touch
+python -m wardrive --screenshot docs/images       # render every screen to PNG (headless, demo data)
 python -m pytest -q tests                         # calibration, parsing, uploads, UI dispatch
 ./scripts/deploy.sh --ui-only                     # sync UI code to the Pi and restart it
 ```
@@ -339,14 +386,16 @@ wardrive/            touch UI package (python3 -m wardrive)
   backend.py         Kismet service control + REST polling -> State
   kismet.py gps.py sysinfo.py uploads.py
   touch.py           evdev reader + affine calibration
-  display.py theme.py widgets.py fmt.py state.py config.py mock.py
+  display.py theme.py widgets.py fmt.py state.py config.py
   sessions.py        finished-session browser: reads .kismet databases, cached
   mapdata.py         offline map file format and reader
   maprender.py       map renderer (pygame + numpy) and network dots
+  demo/              demo mode: simulated drives (world.py), Kismet-format files (files.py), backend
+  mock.py            minimal in-memory backend for fast UI tests
   views/             nets, stats, gps, map, log, menu, sessions, upload, calibrate
 config/              kismet_site.conf, wardrive.toml.example
 system/              systemd units, sudoers, NetworkManager/chrony/link files
-scripts/             install.sh, boot-config.sh, deploy.sh, pull-logs.sh, push-map.sh, display-test.sh
+scripts/             install.sh, boot-config.sh, deploy.sh, pull-logs.sh, push-map.sh, demo.sh, display-test.sh
 tools/               wardrive_review.py (server-side review, repair and WiGLE upload)
                      build_map.py (OpenStreetMap extract -> offline .map file)
 case/                3D-printable case and dash mount: models, build script, print guide
@@ -369,6 +418,7 @@ docs/images/         screenshots (simulated data)
 | GPS NO FIX forever | Get a sky view (it won't lock indoors). Check `cgps` |
 | Bluetooth source error | `sudo rfkill unblock bluetooth` |
 | START → ERROR | MENU → LOG, then `journalctl -u wardrive-kismet -b` |
+| DEMO badge, networks look made up | Demo mode is on: MENU → hold DEMO (or `./scripts/demo.sh off`) |
 | MAP says "No map installed" | `ls /var/lib/wardrive/maps/` should list a `.map` file; see [Install an offline map](#5-install-an-offline-map-optional). `journalctl -u wardrive-ui` shows why a file was skipped |
 
 ---

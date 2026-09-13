@@ -42,6 +42,15 @@ class MapConfig:
 
 
 @dataclass
+class DemoConfig:
+    # Demo mode (MENU -> DEMO): fake sessions, simulated GPS and capture. See wardrive/demo.
+    dir: str = "/var/lib/wardrive/demo"
+    # Where simulated drives start; set this to your own town. Default: downtown Atlanta.
+    lat: float = 33.7490
+    lon: float = -84.3880
+
+
+@dataclass
 class CaptureConfig:
     # The Pi has no RTC: after a boot away from Wi-Fi the clock is wrong until chrony
     # takes time from the GPS. Capturing before then stamps every record with that
@@ -88,6 +97,7 @@ class Config:
     kismet: KismetConfig = field(default_factory=KismetConfig)
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     map: MapConfig = field(default_factory=MapConfig)
+    demo: DemoConfig = field(default_factory=DemoConfig)
     gps: GpsConfig = field(default_factory=GpsConfig)
     upload: UploadConfig = field(default_factory=UploadConfig)
 

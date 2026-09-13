@@ -1,4 +1,4 @@
-"""Simulated backend for developing the UI away from the Pi."""
+"""Minimal in-memory backend for fast UI tests. For trying the app, use demo mode (wardrive/demo)."""
 
 from __future__ import annotations
 
@@ -93,6 +93,9 @@ class MockUploads:
 
     def enabled(self, target):
         return True
+
+    def unavailable(self, target):
+        return ""
 
     def label(self, target):
         return "WiGLE" if target == "wigle" else "Home server"

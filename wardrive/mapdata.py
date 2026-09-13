@@ -8,9 +8,8 @@ A map file is SQLite with two tables:
 Features are stored at four levels of detail (LODs). Each LOD is cut into Web
 Mercator tiles at its own tile zoom, and each tile's `data` is zlib-compressed
 JSON. Coordinates are integers in the tile's local grid of EXTENT units per side
-(they may fall outside 0..EXTENT when a feature crosses the tile edge; features
-are stored whole in every tile they touch, and carry an id so the renderer can
-draw each once).
+(they may fall slightly outside 0..EXTENT: features are clipped to each tile they
+touch with a small overlap, so neighbouring tiles join without gaps).
 
 Tile JSON (every key optional):
 
@@ -30,6 +29,7 @@ Tile JSON (every key optional):
 from __future__ import annotations
 
 import json
+import logging
 import math
 import sqlite3
 import zlib
@@ -144,3 +144,17 @@ class MapFile:
 
     def close(self) -> None:
         self._con.close()
+
+
+def find_map(directory: str | Path) -> MapFile | None:
+    """The first usable *.map file in a directory (alphabetically), or None."""
+    try:
+        files = sorted(Path(directory).glob("*.map"))
+    except OSError:
+        return None
+    for path in files:
+        try:
+            return MapFile(path)
+        except Exception as exc:  # corrupt or unsupported file: try the next one
+            logging.getLogger(__name__).warning("cannot open map %s: %s", path, exc)
+    return None

@@ -25,6 +25,13 @@ poll_seconds = 2.0
 dir = "/var/lib/wardrive/maps"
 default_zoom = 16                      # street level when the first GPS fix arrives (6-19)
 
+[demo]
+# Demo mode (MENU -> DEMO, or scripts/demo.sh): simulated GPS, capture and past sessions,
+# kept in their own directory. Simulated drives start here: pick a public spot in your town.
+dir = "/var/lib/wardrive/demo"
+lat = 33.7490
+lon = -84.3880
+
 [capture]
 # Hold START until chrony has set the clock from GPS or NTP. The Pi has no RTC, so
 # anything captured before that is stamped with a stale time.

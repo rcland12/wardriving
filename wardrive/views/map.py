@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import math
-import time
-from pathlib import Path
+from collections import Counter
 
 import pygame
 
 from .. import fmt, theme
-from ..mapdata import MAX_ZOOM, MIN_ZOOM, MapFile, lonlat_to_world, meters_per_pixel, world_to_lonlat
+from ..mapdata import find_map, lonlat_to_world, meters_per_pixel, world_to_lonlat
 from ..maprender import DotLayer, MapRenderer, Viewport
 from ..touch import TouchEvent
 from ..widgets import SLOP, Button
@@ -18,25 +16,10 @@ from . import CONTENT, View
 from .devicelist import DeviceModal
 from .sessions import Loader
 
-log = logging.getLogger(__name__)
-
 AREA = CONTENT
 BTN = 38
 LIVE_REFRESH = 1.0  # s between re-reading live devices
 RECENTER_PX = 60  # while following GPS, re-render once the base image drifts this far
-
-
-def open_map(directory: str) -> MapFile | None:
-    try:
-        files = sorted(Path(directory).glob("*.map"))
-    except OSError:
-        return None
-    for path in files:
-        try:
-            return MapFile(path)
-        except Exception as exc:  # corrupt or unsupported file: try the next one
-            log.warning("cannot open map %s: %s", path, exc)
-    return None
 
 
 class MapView(View):
@@ -44,7 +27,7 @@ class MapView(View):
 
     def __init__(self, app):
         super().__init__(app)
-        self.map = open_map(app.cfg.map.dir)
+        self.map = find_map(app.cfg.map.dir)
         self.renderer = MapRenderer(self.map)
         lon, lat = self.map.center() if self.map else (-98.58, 39.83)
         cx, cy = lonlat_to_world(lon, lat)
@@ -118,8 +101,13 @@ class MapView(View):
         devices = self.dots.devices
         if not devices:
             return
-        lon = sum(d.lon for d in devices) / len(devices)
-        lat = sum(d.lat for d in devices) / len(devices)
+        # Centre on the busiest ~1 km square, not the average: one trip to another city
+        # shouldn't put the map in the empty countryside between the two.
+        cells = Counter((round(d.lat, 2), round(d.lon, 2)) for d in devices)
+        best = cells.most_common(1)[0][0]
+        near = [d for d in devices if (round(d.lat, 2), round(d.lon, 2)) == best]
+        lon = sum(d.lon for d in near) / len(near)
+        lat = sum(d.lat for d in near) / len(near)
         self.vp.cx, self.vp.cy = lonlat_to_world(lon, lat)
 
     # --- input -------------------------------------------------------------------

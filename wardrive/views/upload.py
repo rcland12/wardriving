@@ -56,8 +56,9 @@ class UploadView(View):
         self._refreshed = now
 
     def _sub(self, target: str) -> str:
-        if not self.app.backend.uploads.enabled(target):
-            return "not configured"
+        reason = self.app.backend.uploads.unavailable(target)
+        if reason:
+            return reason
         n = self._pending.get(target, 0)
         return f"{n} pending" if n else "up to date"
 

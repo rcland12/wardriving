@@ -15,6 +15,9 @@ Typical flow:
     wardrive_review.py check latest        # now checks the repaired file
     wardrive_review.py wigle latest        # uploads the reviewed file
 
+The Pi's demo mode uploads simulated sessions to <data>/_demo instead. Review those with
+--demo (every command above works); they can never be sent to WiGLE.
+
 Settings come from the environment or ~/.config/wardrive/review.env (KEY=VALUE):
 
     WARDRIVE_DATA     session directory (or pass --data)
@@ -53,6 +56,8 @@ TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 STEP_SECONDS = 1800  # a clock change at least this large is treated as a step (the Pi was off for a while)
 MAX_SPREAD_KM = 300  # a single drive spanning more than this suggests a GPS glitch
 N_FIELDS = 11  # WigleWifi-1.4 as written by Kismet
+DEMO_DIR = "_demo"  # where the home API stores uploads from the Pi's demo mode
+DEMO_MARKER = "device=wardrive-demo"  # in the pre-header of every simulated WiGLE CSV
 
 
 # --- settings ------------------------------------------------------------------
@@ -144,6 +149,10 @@ class WigleCsv:
     def text(self) -> str:
         return "\n".join([self.preheader, self.header, *(r.line() for r in self.rows)]) + "\n"
 
+    @property
+    def is_demo(self) -> bool:
+        return DEMO_MARKER in self.preheader.split(",")
+
 
 # --- sessions ------------------------------------------------------------------
 
@@ -206,7 +215,8 @@ def all_sessions(data: Path) -> list[Session]:
     capture start, which can be wrong (no RTC), so they don't sort reliably."""
     if not data.is_dir():
         raise SystemExit(f"data directory not found: {data}")
-    return sorted((Session(p) for p in data.iterdir() if p.is_dir()), key=lambda s: (s.uploaded_at, s.name))
+    sessions = (Session(p) for p in data.iterdir() if p.is_dir() and not p.name.startswith("_"))  # _demo is not a session
+    return sorted(sessions, key=lambda s: (s.uploaded_at, s.name))
 
 
 def find_session(data: Path, ref: str) -> Session:
@@ -600,6 +610,8 @@ def cmd_list(args) -> int:
             status = "empty (no GPS rows)"
         else:
             status = "not reviewed"
+        if csv.is_demo:
+            status += " (demo data)"
         print(f"{s.name:34} {len(csv.rows):>5}  {started:19}  {status}")
     return 0
 
@@ -661,6 +673,9 @@ def cmd_wigle(args) -> int:
     session = find_session(args.data, args.session)
     rep = run_check(session)
     print_report(session, rep)
+    if session.read_original().is_demo or args.demo:
+        print("\nnot uploading: this is simulated demo data, and it must never reach WiGLE")
+        return 1
     if rep.failures and not args.force:
         print("\nnot uploading: fix the FAIL items first (or pass --force)")
         return 1
@@ -724,6 +739,7 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--data", type=Path, default=os.environ.get("WARDRIVE_DATA"), help="session directory (env WARDRIVE_DATA)")
+    parser.add_argument("--demo", action="store_true", help=f"work on demo-mode uploads (<data>/{DEMO_DIR})")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("list", help="list sessions and their review status").set_defaults(func=cmd_list)
@@ -757,6 +773,8 @@ def main(argv: list[str] | None = None) -> int:
         return args.func(args)
     if args.data is None:
         parser.error("set WARDRIVE_DATA or pass --data")
+    if args.demo:
+        args.data = args.data / DEMO_DIR
     return args.func(args)
 
 

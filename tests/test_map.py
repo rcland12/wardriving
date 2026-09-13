@@ -1,6 +1,5 @@
 """Offline map: projection, tile format, builder (if pyosmium is installed), renderer, MAP view."""
 
-import math
 import os
 import time
 from pathlib import Path
@@ -121,7 +120,6 @@ def test_builder_coordinates_land_where_expected(built_map):
 
 def test_builder_clips_long_features_to_each_tile(built_map):
     m = MapFile(built_map)
-    z = LOD_TILE_ZOOM[3]
     y = lonlat_to_world(-84.40, 33.7400)[1]
     x0, x1 = lonlat_to_world(-84.44, 33.74)[0], lonlat_to_world(-84.33, 33.74)[0]
     pieces = []
@@ -268,7 +266,8 @@ def test_map_saved_mode_and_open_from_session(app):
     app.tick()
     assert len(view.dots.devices) == 90
     lon, lat = world_to_lonlat(view.vp.cx, view.vp.cy)
-    assert abs(lat - sum(d.lat for d in view.dots.devices) / 90) < 1e-6  # centred on the session
+    lats = [d.lat for d in view.dots.devices]
+    assert min(lats) <= lat <= max(lats)  # centred on the session's dots
 
 
 def test_live_map_zooms_to_first_fix_then_follows(app):

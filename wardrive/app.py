@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 import pygame
 
-from . import fmt, theme
+from . import demo, fmt, theme
 from .config import Config
 from .display import Display
 from .state import Capture, State
@@ -48,11 +49,25 @@ class SummaryModal(Modal):
         ]
 
 
+class MessageModal(Modal):
+    def __init__(self, app, title: str, lines: list[tuple[str, str, tuple]]):
+        super().__init__(app)
+        self.title, self._lines = title, lines
+
+    def lines(self):
+        return self._lines
+
+
 class App:
-    def __init__(self, cfg: Config, state: State, backend, display: Display, touch: EvdevTouch | None):
+    def __init__(self, cfg: Config, state: State, backend, display: Display, touch: EvdevTouch | None,
+                 sandbox: bool = False):
+        """sandbox: running with --mock on a desktop, where demo mode can't be switched off."""
         self.cfg, self.state, self.backend, self.display, self.touch = cfg, state, backend, display, touch
+        self.sandbox = sandbox
         self.calibration: Calibration | None = Calibration.load(cfg.calibration_path)
         self.running = True
+        self.restart = False  # exit the loop and re-exec (demo mode switched)
+        self.busy: tuple[str, str] | None = None  # full-screen (title, detail) while switching modes
         self.modal: Modal | None = None
         self.shutting_down = 0.0
         self.snapshot_requested = False  # set by SIGUSR1: dump the canvas to /tmp
@@ -82,6 +97,42 @@ class App:
 
     def close_modal(self) -> None:
         self.modal = None
+
+    @property
+    def demo(self) -> bool:
+        return getattr(self.backend, "demo", False)
+
+    def toggle_demo(self) -> None:
+        """Switch demo mode on or off, then restart into the other backend."""
+        st = self.state
+        if self.sandbox or self.busy:
+            return
+        if st.capture != Capture.IDLE:
+            self.open_modal(MessageModal(self, "Stop capture first", [
+                ("", "Demo mode can only be switched", theme.TEXT), ("", "while nothing is capturing.", theme.TEXT),
+            ]))
+            return
+        turning_on = not self.demo
+        self.busy = ("Starting demo mode…", "") if turning_on else ("Leaving demo mode…", "Deleting demo data")
+
+        def progress(i, n, name):
+            self.busy = ("Starting demo mode…", f"Simulating drive {i} of {n}")
+
+        def run():
+            try:
+                if turning_on:
+                    demo.turn_on(self.cfg, progress)
+                else:
+                    demo.turn_off(self.cfg)
+            except Exception as exc:
+                log.exception("demo mode switch failed")
+                self.busy = None
+                st.log("error", f"Demo mode: {exc}")
+                self.open_modal(MessageModal(self, "Demo mode failed", [("", str(exc), theme.RED)]))
+                return
+            self.restart, self.running = True, False
+
+        threading.Thread(target=run, name="demo-switch", daemon=True).start()
 
     def touch_connected(self) -> bool:
         return self.touch is None or self.touch.connected
@@ -156,7 +207,7 @@ class App:
         return events
 
     def _dispatch(self, ev: TouchEvent) -> None:
-        if self.shutting_down:
+        if self.shutting_down or self.busy:
             return
         if self.modal:
             self.modal.handle(ev)
@@ -207,7 +258,13 @@ class App:
             right = r.left - 8
         if s.cpu_temp:
             color = theme.RED if s.cpu_temp >= 80 else theme.AMBER if s.cpu_temp >= 70 else theme.DIM
-            theme.blit_text(surf, f"{s.cpu_temp:.0f}°", (right, cy), 13, color, anchor="midright")
+            r = theme.blit_text(surf, f"{s.cpu_temp:.0f}°", (right, cy), 13, color, anchor="midright")
+            right = r.left - 8
+        if self.demo:
+            tag = theme.text("DEMO", 11, theme.BG, bold=True)
+            box = tag.get_rect(midright=(right, cy)).inflate(10, 4)
+            pygame.draw.rect(surf, theme.AMBER, box, border_radius=4)
+            surf.blit(tag, tag.get_rect(center=box.center))
 
     def _draw_footer(self, surf: pygame.Surface) -> None:
         st = self.state
@@ -231,6 +288,8 @@ class App:
             text = f"Last session {fmt.duration(s.duration)} · {s.wifi:,} Wi-Fi · {s.bt:,} BT"
         elif st.sys.clock_source == "unsynced":
             text = "Clock not set yet. START will wait for GPS time."
+        elif self.demo:
+            text = "Demo mode: simulated GPS and capture. MENU → DEMO to leave."
         elif not st.gps.has_fix:
             text = "No GPS fix: networks found now won't have locations."
         else:
@@ -246,6 +305,11 @@ class App:
         if self.shutting_down:
             theme.blit_text(surf, "Shutting down…", (240, 140), 24, theme.AMBER, bold=True, anchor="center")
             theme.blit_text(surf, "Wait for the green LED to stop blinking", (240, 175), 14, theme.DIM, anchor="center")
+            return
+        if self.busy:
+            title, detail = self.busy
+            theme.blit_text(surf, title, (240, 140), 24, theme.AMBER, bold=True, anchor="center")
+            theme.blit_text(surf, detail, (240, 175), 14, theme.DIM, anchor="center")
             return
         if self.current.fullscreen:
             self.current.draw(surf, now)

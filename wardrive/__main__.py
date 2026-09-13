@@ -7,9 +7,10 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 from pathlib import Path
 
-from . import config
+from . import config, demo
 from .state import State
 
 
@@ -22,7 +23,7 @@ def main() -> int:
         "--mock",
         action="store_true",
         default=bool(os.environ.get("WARDRIVE_MOCK")),
-        help="simulated Kismet/GPS backend (env WARDRIVE_MOCK=1)",
+        help="demo mode with its own data under ~/.local/state/wardrive (env WARDRIVE_MOCK=1)",
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument(
@@ -65,21 +66,31 @@ def main() -> int:
     from .display import Display
 
     if args.screenshot:
-        from .mock import MockBackend
+        from .demo.backend import DemoBackend
 
-        display = Display("headless")
-        backend = MockBackend(cfg, state)
-        backend.start()
-        backend.prefill()
-        app = App(cfg, state, backend, display, touch=None)
-        for path in app.screenshots(Path(args.screenshot)):
-            print(path)
+        with tempfile.TemporaryDirectory(prefix="wardrive-screenshots-") as tmp:
+            cfg.demo.dir = str(Path(tmp) / "demo")
+            demo.turn_on(cfg, seed=7)
+            demo.use_demo_paths(cfg)
+            display = Display("headless")
+            backend = DemoBackend(cfg, state, real_power=False, seed=7)
+            backend.start()
+            backend.prefill()
+            app = App(cfg, state, backend, display, touch=None)
+            for path in app.screenshots(Path(args.screenshot)):
+                print(path)
         return 0
 
-    if args.mock:
-        from .mock import MockBackend
+    if args.mock or demo.is_on(cfg):
+        from .demo.backend import DemoBackend
 
-        backend = MockBackend(cfg, state)
+        if args.mock:  # a desktop sandbox, separate from the Pi's demo directory
+            cfg.demo.dir = str(cfg.state_path / "mock-demo")
+            if not demo.is_on(cfg):
+                print("creating demo sessions…", flush=True)
+                demo.turn_on(cfg, progress=lambda i, n, name: print(f"  {i}/{n} {name}", flush=True))
+        demo.use_demo_paths(cfg)
+        backend = DemoBackend(cfg, state, real_power=not args.mock)
     else:
         from .backend import Backend
 
@@ -95,7 +106,7 @@ def main() -> int:
         touch.start()
 
     backend.start()
-    app = App(cfg, state, backend, display, touch)
+    app = App(cfg, state, backend, display, touch, sandbox=args.mock)
 
     def stop(*_):
         app.running = False
@@ -112,6 +123,12 @@ def main() -> int:
         app.run()
     finally:
         display.close()
+    if app.restart:  # demo mode switched: start over with the other backend
+        if os.environ.get("INVOCATION_ID"):  # under systemd: exit, Restart=always starts us again
+            logging.info("exiting so systemd restarts the UI")
+            return 75
+        logging.info("restarting")
+        os.execv(sys.executable, [sys.executable, "-m", "wardrive", *sys.argv[1:]])
     return 0
 
 

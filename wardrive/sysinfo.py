@@ -67,9 +67,9 @@ def clock_source() -> str:
 
 
 class SysInfoPoller(threading.Thread):
-    def __init__(self, state: State, log_dir: str, interval: float = 5.0):
+    def __init__(self, state: State, log_dir: str, interval: float = 5.0, clock=clock_source):
         super().__init__(name="sysinfo", daemon=True)
-        self.state, self.log_dir, self.interval = state, log_dir, interval
+        self.state, self.log_dir, self.interval, self.clock = state, log_dir, interval, clock
 
     def run(self) -> None:
         tick = 0
@@ -84,7 +84,7 @@ class SysInfoPoller(threading.Thread):
                 s.disk_free_bytes = shutil.disk_usage(self.log_dir).free
             except OSError:
                 s.disk_free_bytes = 0
-            s.clock_source = clock_source()
+            s.clock_source = self.clock()
             if tick % 3 == 0:  # every ~15 s
                 s.ip = primary_ip()
                 s.online = online() if s.ip else False
