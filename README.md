@@ -354,6 +354,18 @@ WIGLE_DONATE=on              # allow WiGLE commercial use of your uploads
 ```
 With this setup, leave `[upload.wigle]` on the Pi unconfigured.
 
+### Analyzer web app
+
+`analyzer/` is the web app for every uploaded session, deployed from the rustyserver stack at
+https://wardrive.russellland.dev behind Keycloak: a map of every network and Bluetooth device
+(street, dark and satellite basemaps, routes, clustering, heatmap), filters that stay in the URL,
+a details panel with signal over time and where each device was heard, stats, and a Sessions
+page that runs the same check / fix / WiGLE upload as the tool above.
+
+When the Pi uploads, the home API stores the files and tells the analyzer, which loads the
+session into Postgres. Reviews and WiGLE upload records live there too; the uploaded files are
+never modified. Details in [analyzer/README.md](analyzer/README.md).
+
 ---
 
 ## Development
@@ -398,6 +410,7 @@ system/              systemd units, sudoers, NetworkManager/chrony/link files
 scripts/             install.sh, boot-config.sh, deploy.sh, pull-logs.sh, push-map.sh, demo.sh, display-test.sh
 tools/               wardrive_review.py (server-side review, repair and WiGLE upload)
                      build_map.py (OpenStreetMap extract -> offline .map file)
+analyzer/            web app (SvelteKit + Postgres): map, filters, stats, review and WiGLE upload
 case/                3D-printable case and dash mount: models, build script, print guide
 tests/               hardware-free tests
 docs/images/         screenshots (simulated data)

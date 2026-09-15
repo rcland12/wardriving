@@ -1,0 +1,11 @@
+# Context is the wardriving repo root. Allowlist: send only what the image needs, never capture
+# data, case models, or local node_modules.
+**
+!analyzer/package.json
+!analyzer/package-lock.json
+!analyzer/svelte.config.js
+!analyzer/vite.config.ts
+!analyzer/tsconfig.json
+!analyzer/src/**
+!analyzer/static/**
+!tools/wardrive_review.py

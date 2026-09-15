@@ -215,3 +215,64 @@ def test_env_file_does_not_override_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("WIGLE_API_NAME", raising=False)
     wr.load_env_file(env)
     assert os.environ["WARDRIVE_DATA"] == "/from/env" and os.environ["WIGLE_API_NAME"] == "AIDfile"
+
+
+def test_json_output_for_the_analyzer(tmp_path, capsys):
+    """--json prints exactly one JSON object per command, including for errors."""
+    make_session(tmp_path)
+
+    def run(*argv):
+        code = wr.main(["--data", str(tmp_path), "--json", *argv])
+        out = capsys.readouterr().out.strip().splitlines()
+        assert len(out) == 1
+        return code, json.loads(out[0])
+
+    code, body = run("list")
+    assert code == 0 and body["ok"] and body["sessions"][0]["status"] == "unreviewed"
+
+    code, body = run("check", "latest")
+    assert code == 1 and body["report"]["verdict"] == "FAIL" and not body["reviewed"]
+
+    code, body = run("wigle", "latest", "--dry-run")
+    assert code == 1 and body["blocked"] == "failures" and body["sent"] is False
+
+    code, body = run("fix", "latest")
+    assert code == 0 and len(body["fixes"]) == 3 and body["report"]["verdict"] == "OK"
+
+    code, body = run("wigle", "latest", "--dry-run")
+    assert code == 0 and body["dry_run"] and body["reviewed"] and body["rows"] == 7 and not body["sent"]
+
+    code, body = run("check", "no-such-session")
+    assert code == 1 and body == {"ok": False, "error": "session 'no-such-session' matches 0 sessions: none"}
+
+
+def test_json_upload_of_demo_data_is_blocked(tmp_path, capsys):
+    s = make_session(tmp_path)
+    raw = gzip.decompress(s.original_csv.read_bytes()).decode().replace("device=kismet", wr.DEMO_MARKER, 1)
+    s.original_csv.write_bytes(gzip.compress(raw.encode()))
+    assert wr.main(["--data", str(tmp_path), "--json", "wigle", "latest"]) == 1
+    body = json.loads(capsys.readouterr().out)
+    assert body["blocked"] == "demo" and body["sent"] is False
+
+
+def test_external_reviewed_copy_leaves_the_session_directory_untouched(tmp_path, capsys):
+    """The analyzer's mode: read-only session files, reviewed CSV and records kept elsewhere."""
+    make_session(tmp_path / "data")
+    session_dir = next((tmp_path / "data").iterdir())
+    before = sorted(p.name for p in session_dir.rglob("*"))
+    out = tmp_path / "work" / "reviewed.wiglecsv"
+    out.parent.mkdir()
+    base = ["--data", str(tmp_path / "data"), "--json", "--reviewed-csv", str(out), "--no-record"]
+
+    assert wr.main([*base, "fix", "latest"]) == 0
+    assert json.loads(capsys.readouterr().out)["report"]["verdict"] == "OK"
+    assert out.is_file() and "[WPA2-EAP-CCMP]" in out.read_text()
+    assert sorted(p.name for p in session_dir.rglob("*")) == before  # no review/ written
+
+    assert wr.main([*base, "wigle", "latest", "--dry-run"]) == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["reviewed"] and body["rows"] == 7
+
+    out.unlink()  # no reviewed copy: falls back to the original, never to <session>/review/
+    assert wr.main([*base, "check", "latest"]) == 1
+    assert json.loads(capsys.readouterr().out)["report"]["verdict"] == "FAIL"

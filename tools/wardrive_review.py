@@ -15,6 +15,13 @@ Typical flow:
     wardrive_review.py check latest        # now checks the repaired file
     wardrive_review.py wigle latest        # uploads the reviewed file
 
+Every command takes --json (before the command name) to print one JSON object instead of
+text, for the analyzer web app. Errors then print {"ok": false, "error": ...}.
+
+The analyzer keeps reviewed CSVs and upload records in Postgres and mounts the session
+directory read-only, so it also passes --reviewed-csv PATH (read and write the reviewed copy
+there instead of <session>/review/) and --no-record (don't read or write review.json).
+
 The Pi's demo mode uploads simulated sessions to <data>/_demo instead. Review those with
 --demo (every command above works); they can never be sent to WiGLE.
 
@@ -198,12 +205,16 @@ class Session:
         return self.read_original(), False
 
     def record(self) -> dict:
+        if self.record_path is None:
+            return {}
         try:
             return json.loads(self.record_path.read_text())
         except (OSError, ValueError):
             return {}
 
     def save_record(self, record: dict) -> None:
+        if self.record_path is None:
+            return  # --no-record: the caller keeps its own record
         self.review_dir.mkdir(exist_ok=True)
         tmp = self.record_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(record, indent=2) + "\n")
@@ -398,12 +409,15 @@ class Report:
     def verdict(self) -> str:
         return "FAIL" if self.failures else "WARN" if self.warnings else "OK"
 
+    def as_dict(self) -> dict:
+        return {"verdict": self.verdict, "info": self.lines, "failures": self.failures, "warnings": self.warnings}
+
 
 def check(session: Session, csv: WigleCsv, reviewed: bool, kismet: KismetInfo | None) -> Report:
     rep = Report()
     crypt = kismet.crypt if kismet else None
     rows = csv.rows
-    rep.info(f"file:        {'review/' + session.reviewed_csv.name if reviewed else session.original_csv.name}")
+    rep.info(f"file:        {'reviewed copy ' + session.reviewed_csv.name if reviewed else session.original_csv.name}")
     rep.info(f"format:      {csv.preheader.split(',')[0]}, {len(rows)} rows" + (f", {csv.bad_lines} unparseable" if csv.bad_lines else ""))
     if not rows:
         rep.failures.append("no rows: nothing to upload (was there a GPS fix?)")
@@ -590,29 +604,62 @@ def multipart(fields: dict[str, str], file_field: str, filename: str, payload: b
 # --- commands ------------------------------------------------------------------
 
 
+def open_session(args) -> Session:
+    """The session named on the command line, with --reviewed-csv / --no-record applied."""
+    session = find_session(args.data, args.session)
+    if args.reviewed_csv is not None:
+        session.reviewed_csv = args.reviewed_csv
+    if args.no_record:
+        session.record_path = None
+    return session
+
+
+def emit(data: dict) -> None:
+    """Print a --json result."""
+    print(json.dumps({"ok": True, **data}))
+
+
+def session_summary(s: Session) -> dict:
+    """What `list` knows about one session, without opening the Kismet database."""
+    try:
+        csv, reviewed = s.read_current()
+    except (OSError, ValueError) as exc:
+        return {"session": s.name, "error": str(exc)}
+    times = sorted(t for t in (r.time for r in csv.rows) if t)
+    record = s.record()
+    if record.get("wigle"):
+        status = "uploaded"
+    elif reviewed:
+        status = "reviewed"
+    elif not csv.rows:
+        status = "empty"
+    else:
+        status = "unreviewed"
+    return {
+        "session": s.name,
+        "rows": len(csv.rows),
+        "started": f"{times[0]:%Y-%m-%dT%H:%M:%SZ}" if times else None,
+        "status": status,
+        "demo": csv.is_demo,
+        "record": record,
+    }
+
+
 def cmd_list(args) -> int:
     sessions = all_sessions(args.data)
+    if args.json:
+        emit({"sessions": [session_summary(s) for s in sessions]})
+        return 0
+    labels = {"uploaded": "on WiGLE", "reviewed": "reviewed (ready for WiGLE)", "empty": "empty (no GPS rows)", "unreviewed": "not reviewed"}
     print(f"{'SESSION':34} {'ROWS':>5}  {'STARTED (UTC)':19}  STATUS")
     for s in sessions:
-        try:
-            csv, reviewed = s.read_current()
-        except (OSError, ValueError) as exc:
-            print(f"{s.name:34} {'-':>5}  {'-':19}  unreadable: {exc}")
+        info = session_summary(s)
+        if "error" in info:
+            print(f"{s.name:34} {'-':>5}  {'-':19}  unreadable: {info['error']}")
             continue
-        times = sorted(t for t in (r.time for r in csv.rows) if t)
-        started = f"{times[0]:%Y-%m-%d %H:%M:%S}" if times else "-"
-        record = s.record()
-        if record.get("wigle"):
-            status = "on WiGLE"
-        elif reviewed:
-            status = "reviewed (ready for WiGLE)"
-        elif not csv.rows:
-            status = "empty (no GPS rows)"
-        else:
-            status = "not reviewed"
-        if csv.is_demo:
-            status += " (demo data)"
-        print(f"{s.name:34} {len(csv.rows):>5}  {started:19}  {status}")
+        started = info["started"].replace("T", " ").rstrip("Z") if info["started"] else "-"
+        status = labels[info["status"]] + (" (demo data)" if info["demo"] else "")
+        print(f"{s.name:34} {info['rows']:>5}  {started:19}  {status}")
     return 0
 
 
@@ -636,20 +683,21 @@ def print_report(session: Session, rep: Report) -> None:
 
 
 def cmd_check(args) -> int:
-    session = find_session(args.data, args.session)
+    session = open_session(args)
     rep = run_check(session, original=args.original)
-    print_report(session, rep)
+    if args.json:
+        emit({"session": session.name, "reviewed": session.reviewed_csv.is_file() and not args.original, "report": rep.as_dict()})
+    else:
+        print_report(session, rep)
     return 1 if rep.failures else 0
 
 
 def cmd_fix(args) -> int:
-    session = find_session(args.data, args.session)
+    session = open_session(args)
     csv = session.read_original()
     kismet = load_kismet(session)
     notes = apply_fixes(csv, kismet, offset=args.offset, drop_stale=args.drop_stale, restore_auth=not args.no_auth)
-    if not notes:
-        print(f"{session.name}: nothing to fix")
-    session.review_dir.mkdir(exist_ok=True)
+    session.reviewed_csv.parent.mkdir(exist_ok=True)
     tmp = session.reviewed_csv.with_suffix(".tmp")
     tmp.write_text(csv.text())
     tmp.replace(session.reviewed_csv)
@@ -661,42 +709,55 @@ def cmd_fix(args) -> int:
         "sha256": hashlib.sha256(session.reviewed_csv.read_bytes()).hexdigest(),
     }
     session.save_record(record)
+    rep = check(session, csv, True, kismet)
+    if args.json:
+        emit({"session": session.name, "fixes": notes, "rows": len(csv.rows), "report": rep.as_dict()})
+        return 1 if rep.failures else 0
+    if not notes:
+        print(f"{session.name}: nothing to fix")
     for note in notes:
         print(f"  fixed: {note}")
     print(f"  wrote review/{session.reviewed_csv.name}\n")
-    rep = check(session, csv, True, kismet)
     print_report(session, rep)
     return 1 if rep.failures else 0
 
 
 def cmd_wigle(args) -> int:
-    session = find_session(args.data, args.session)
+    session = open_session(args)
     rep = run_check(session)
-    print_report(session, rep)
+    result = {"session": session.name, "report": rep.as_dict(), "sent": False}
+
+    def finish(code: int, message: str, **extra) -> int:
+        if args.json:
+            emit({**result, **extra, "message": message.strip()})
+        else:
+            print(message)
+        return code
+
+    if not args.json:
+        print_report(session, rep)
     if session.read_original().is_demo or args.demo:
-        print("\nnot uploading: this is simulated demo data, and it must never reach WiGLE")
-        return 1
+        return finish(1, "\nnot uploading: this is simulated demo data, and it must never reach WiGLE", blocked="demo")
     if rep.failures and not args.force:
-        print("\nnot uploading: fix the FAIL items first (or pass --force)")
-        return 1
+        return finish(1, "\nnot uploading: fix the FAIL items first (or pass --force)", blocked="failures")
     record = session.record()
     if record.get("wigle") and not args.force:
-        print(f"\nalready uploaded ({record['wigle'].get('at')}); pass --force to upload again")
-        return 1
+        return finish(1, f"\nalready uploaded ({record['wigle'].get('at')}); pass --force to upload again", blocked="uploaded")
     csv, reviewed = session.read_current()
     payload = csv.text().encode()
     donate = os.environ.get("WIGLE_DONATE", "off").lower() in ("on", "1", "true", "yes")
     filename = f"{session.name}.csv"
-    print(f"\nuploading {filename} ({len(csv.rows)} rows, {len(payload)} bytes, "
-          f"{'reviewed' if reviewed else 'ORIGINAL'} file, donate={'on' if donate else 'off'})")
+    result.update(file=filename, rows=len(csv.rows), bytes=len(payload), reviewed=reviewed, donate=donate)
+    summary = (f"\nuploading {filename} ({len(csv.rows)} rows, {len(payload)} bytes, "
+               f"{'reviewed' if reviewed else 'ORIGINAL'} file, donate={'on' if donate else 'off'})")
     if args.dry_run:
-        print("dry run: not sent")
-        return 0
+        return finish(0, summary.replace("uploading", "would upload", 1) if args.json else summary + "\ndry run: not sent", dry_run=True)
+    if not args.json:
+        print(summary)
     body, ctype = multipart({"donate": "on" if donate else "off"}, "file", filename, payload, "text/csv")
     resp = wigle_request("/file/upload", method="POST", body=body, content_type=ctype)
     if not resp.get("success"):
-        print(f"WiGLE rejected the upload: {resp.get('message') or resp}")
-        return 1
+        return finish(1, f"WiGLE rejected the upload: {resp.get('message') or resp}", blocked="rejected")
     transids = [t.get("transId") for t in (resp.get("results") or {}).get("transids", [])]
     record["wigle"] = {
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -707,6 +768,9 @@ def cmd_wigle(args) -> int:
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
     session.save_record(record)
+    result.update(sent=True, transids=transids, warning=resp.get("warning"), sha256=record["wigle"]["sha256"])
+    if args.json:
+        return finish(0, f"uploaded: transaction {', '.join(filter(None, transids)) or '?'}")
     print(f"uploaded: transaction {', '.join(filter(None, transids)) or '?'}"
           + (f" (warning: {resp['warning']})" if resp.get("warning") else ""))
     print("processing status: wardrive_review.py wigle-status")
@@ -716,6 +780,9 @@ def cmd_wigle(args) -> int:
 def cmd_wigle_status(args) -> int:
     resp = wigle_request(f"/file/transactions?pagestart=0&pageend={args.limit}")
     results = resp.get("results") or []
+    if args.json:
+        emit({"queue_depth": resp.get("processingQueueDepth"), "transactions": results})
+        return 0
     print(f"WiGLE queue depth: {resp.get('processingQueueDepth', '?')}")
     print(f"{'TRANSACTION':22} {'STATUS':12} {'DONE':>5} {'NEW WIFI':>8} {'NEW BT':>6}  FILE")
     for t in results:
@@ -727,7 +794,10 @@ def cmd_wigle_status(args) -> int:
 def cmd_wigle_test(args) -> int:
     resp = wigle_request("/profile/user")
     user = resp.get("userid") or resp.get("user") or "?"
-    print(f"WiGLE credentials OK (user {user})")
+    if args.json:
+        emit({"user": user})
+    else:
+        print(f"WiGLE credentials OK (user {user})")
     return 0
 
 
@@ -740,6 +810,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--data", type=Path, default=os.environ.get("WARDRIVE_DATA"), help="session directory (env WARDRIVE_DATA)")
     parser.add_argument("--demo", action="store_true", help=f"work on demo-mode uploads (<data>/{DEMO_DIR})")
+    parser.add_argument("--json", action="store_true", help="print one JSON object instead of text")
+    parser.add_argument("--reviewed-csv", type=Path, help="use this file as the reviewed copy instead of <session>/review/")
+    parser.add_argument("--no-record", action="store_true", help="don't read or write review/review.json")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("list", help="list sessions and their review status").set_defaults(func=cmd_list)
@@ -769,13 +842,23 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("wigle-test", help="check WiGLE credentials").set_defaults(func=cmd_wigle_test)
 
     args = parser.parse_args(argv)
-    if args.command.startswith("wigle-"):
+    if not args.command.startswith("wigle-"):
+        if args.data is None:
+            parser.error("set WARDRIVE_DATA or pass --data")
+        if args.demo:
+            args.data = args.data / DEMO_DIR
+    if not args.json:
         return args.func(args)
-    if args.data is None:
-        parser.error("set WARDRIVE_DATA or pass --data")
-    if args.demo:
-        args.data = args.data / DEMO_DIR
-    return args.func(args)
+    try:
+        return args.func(args)
+    except SystemExit as exc:
+        if exc.code in (0, None):
+            raise
+        print(json.dumps({"ok": False, "error": str(exc.code)}))
+        return 1
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}))
+        return 1
 
 
 if __name__ == "__main__":
