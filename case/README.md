@@ -32,7 +32,7 @@ points down, matching the software's 180° rotation):
  LCD  |  |                                                 |  |  USB-A: GPS +
 power |  |          3.5" screen (lit area)                 |  |  Wi-Fi adapter,
  cord |  |                                                 |  |  both in the
- <==  |  +-------------------------------------------------+  |  blue USB3 stack
+ <==  |  +-------------------------------------------------+  |  black USB2 stack
 SD    |                                                       |  ==>
 slit  +--[PWR]-[BKL]------+=================+-----------------+
          flex buttons     |  adapter hood   |
@@ -103,7 +103,7 @@ because it only works on the printer and profile it was sliced for.
 | 4 | **M3 × 30 socket head** + nut | Bezel to back shell | Heads sit in Ø5.9 × 3.2 mm recesses in the bezel. Nut pockets are sunk 5.1 mm, so a 30 mm screw passes fully through the nut and stops 1 mm past it |
 | 8 | **M3 × 8** | Knuckle foot to case back (4), top tilt plate to knuckle (4) | 4.5 mm of thread each; a longer screw bottoms out in the case floor |
 | 4 | **M3 × 12** | Base tilt plate to base wall | Tapped 10 mm deep, giving 8.5 mm of thread |
-| 2 | **M3 × 30 socket head** + nut + flat washer | Tilt bolts | Head pressed into the knob, nut captured in the tilt plate, washer between knob and arm |
+| 2 | **M3 × 30 socket head** + nut + flat washer | Tilt bolts | Head sunk into the knob, nut trapped in a pocket in the knuckle / base wall behind the tilt plate, washer between knob and arm. The tip clears the nut by 1 mm |
 | ~30 cm | Single-sided closed-cell foam tape, ~1 mm thick, cut into ~1.5 mm strips | Bezel lip, around the window | Fills the 0.5 mm gap so the screen can't rattle, without clamping the glass |
 | — | 3M VHB tape (4991 for textured plastic) | Base to console | |
 
@@ -136,14 +136,17 @@ knobs only stop tightening from grinding the arm.
 7. **Test the buttons:** press each tab on the bottom face; you should feel the
    screen's button click.
 8. Push the microSD card back in through the slit on the left side.
-9. Press an M3 × 30's head into each knob's round pocket. If it's tight, warm the
-   screw head for a few seconds with a soldering iron and push it in.
-10. Bolt `07_knuckle` to the case back through its foot (4× M3 × 8, driven down the
-    tunnels in the gusset).
-11. Drop a nut into the centre hex pocket of each tilt plate. Bolt one plate to the
-    knuckle's upright with its long side along the case height (4× M3 × 8), and the
-    other to the base wall with its long side along the base (4× M3 × 12). The nuts
-    end up trapped.
+9. Drop an M3 × 30 head-first into each knob's round pocket. It slides freely for the
+   first 3 mm, then meets a tight seat. Pull it home with a nut and washer on the thread
+   under the knob, then take them off. You can also warm the head for a few seconds with
+   a soldering iron and push it in.
+10. Lay the knuckle and the base with their mounting faces up, and press a nut into the
+    hex pocket in the middle of each face. If one won't stay put, use a drop of CA glue.
+    Bolt one tilt plate over the knuckle's upright with its long side along the case
+    height (4× M3 × 8), and the other over the base wall with its long side along the
+    base (4× M3 × 12). The nuts end up trapped behind the plates.
+11. Bolt `07_knuckle` to the case back through its foot (4× M3 × 8, driven down the
+    tunnels in the gusset). The plate on the upright doesn't block the tunnels.
 12. At each joint: flat washer on the knob's bolt, then through the arm into the
     plate's nut. **Rotate the plate half a tooth (5°) against the arm so the teeth
     interleave.** Square-on they sit tip-to-tip and won't seat. Set the angle, then
@@ -205,7 +208,7 @@ height of that gap**: 23 vertical slots, 3 mm wide, about 1030 mm² of opening.
 | Top (GPIO edge) | 13 | Mounted, this edge faces up: the exhaust |
 | Bottom (power edge) | 6 | Right of the adapter hood: the intake. The rest of that wall is the power jack, button notches and hood |
 | Left | 4 | Between the LCD power notch and the stylus tube, above the SD slit |
-| Right | 0 | The USB2 stack and ethernet jack sit against it inside; the USB3 notch is already open |
+| Right | 0 | The blue USB3 stack and ethernet jack sit against it inside; the USB2 notch is already open |
 
 With the GPIO edge up and the power edge down, hot air rises through the gap and out the
 top — a chimney.
@@ -237,9 +240,16 @@ checked by `mountcheck` assuming a 110 mm stylus.
 |---|---|---|
 | Pi power (USB-C) | bottom face | a USB-C plug overmold of 10.92 × 6.17 mm |
 | Screen power (USB-C) | left side, high | the same plug size |
-| USB-A | right side | the blue USB3 stack with 16.5 mm plugs (GPS and Wi-Fi adapter). `usb2_open = 1` opens the USB2 stack too |
+| USB-A | right side | the **black USB2 stack** with 16.5 mm plugs (GPS and Wi-Fi adapter). `usb3_open = 1` opens the blue USB3 stack too |
 | microSD | left side slit | card inserted after the Pi is in |
 | Ethernet, AV, micro-HDMI | closed | not used |
+
+**Why the black ports.** The GPS and the Wi-Fi adapter go in the USB 2.0 stack. A USB 3.0
+port running SuperSpeed radiates broadband noise around 2.4 GHz, right where the adapter
+is listening, and it can raise the noise floor a GPS receiver sees as well. A USB 2.0 port
+never runs SuperSpeed, and neither device needs more than 480 Mbps for scanning. The
+opening is the same size as before, just moved 18 mm toward the power edge; it keeps
+3 mm of wall to the corner ear.
 
 ### Why the arm prints flat
 
@@ -271,7 +281,17 @@ the screen can tilt 180° before the arm would hit the case back.
 
 The bolt only provides clamping force; the teeth carry the load. So M3 is plenty, and a
 positive tooth lock can't creep the way a friction joint does. Braking at 1 g with
-a ~250 g payload at ~234 mm is about 0.6 N·m, or ~38 N spread over 36 teeth.
+a ~250 g payload at ~234 mm is about 0.6 N·m, or ~38 N spread over 36 teeth. **Snug the
+knob, don't crank it.** The straight-sided teeth hold the angle on their own.
+
+**The nut sits behind the tilt plate, not in it.** Tightening pulls the nut toward the
+arm at the plate's centre while the arm pushes back on the tooth ring 13.5 mm out, so
+the middle of the plate is loaded in bending. The first design had the nut pocket in the
+plate, which left a 2.7 mm web over a bridged pocket roof, and even light hand-tightening
+caved the centre in. Now the nut sits in a pocket in the knuckle's upright or the base
+wall and bears on the plate's solid 5.4 mm centre, which is about 4× as strong. The
+knob's bolt head is sunk 3 mm deeper so an M3 × 30 still reaches through the nut.
+`fitcheck` checks that the tip clears the nut and stays inside the bolt-tip hole.
 
 | | mm above console floor |
 |---|---|
@@ -295,7 +315,8 @@ The most useful parameters in its `PARAMS` table:
 | `vent_w` / `vent_rib` | 3 mm / 3 mm | Vent slot width and the solid rib between slots. Slot count adjusts automatically | case back only |
 | `nub_gap` | 0.3 mm | Flex-button wedge to button. Lower it if a button doesn't click, raise it if one is held down | bezel only |
 | `adp_hood` | 1 | 0 = open notch instead of a hood (the adapter then pokes ~5 mm out of the case) | case back, bezel |
-| `usb2_open` | 0 | 1 = also open the USB2 port stack | case back |
+| `usb2_open` / `usb3_open` | 1 / 0 | Which USB-A stack the case opens: black USB2 by default, blue USB3 with `usb3_open`. Both = one merged notch | case back |
+| `kn_gusset_ang` | 30° | Slope of the knuckle's brace. Lower = the foot screws nearest the upright sit less deep in their tunnels (4.8 mm at 30°, 9 mm at 45°) | knuckle only |
 
 Without Fusion 360, import the STEP file into any CAD tool to modify a part.
 

@@ -88,7 +88,8 @@ PARAMS = [
     ("fpc_relief", "1.5 mm", "mm", "touch-panel flex wraps the right edge of the glass"),
     ("edge_clear_b", "2.5 mm", "mm", "extra room on power edge: USB-C/AV protrude past pcb"),
     ("edge_clear_r", "3 mm", "mm", "extra room on USB edge: USB-A/ethernet protrude"),
-    ("usb2_open", "0", "", "1 = also open the USB2 stack (merged notch)"),
+    ("usb3_open", "0", "", "1 = open the blue USB3 stack (merged into one notch if USB2 is open too)"),
+    ("usb2_open", "1", "", "1 = open the black USB2 stack - where the GPS and Wi-Fi adapter live"),
     ("btn_pwr_a", "3.78 mm", "mm", "MEASURED PWR button near side, bottom edge, from origin"),
     ("btn_pwr_b", "6.59 mm", "mm", "MEASURED PWR button far side"),
     ("btn_bkl_a", "14 mm", "mm", "MEASURED BKL button near side"),
@@ -139,7 +140,7 @@ PARAMS = [
     ("kn_case_screw_l", "8 mm", "mm", "M3 screws, knuckle foot to case back"),
     ("kn_plate_screw_l", "8 mm", "mm", "M3 screws, tilt plate to knuckle upright"),
     ("base_plate_screw_l", "12 mm", "mm", "M3 screws, base tilt plate to base wall"),
-    ("tilt_bolt_l", "30 mm", "mm", "M3 socket-head tilt bolts"),
+    ("tilt_bolt_l", "30 mm", "mm", "M3 socket-head tilt bolts (longest on hand)"),
     ("tilt_washer_t", "0.6 mm", "mm", "flat washer between each knob and the arm"),
     ("case_tap_d", "5 mm", "mm", "tapped depth in the case floor (floor is floor_t)"),
     ("base_tap_d", "10 mm", "mm", "tapped depth in the base wall (was 8; deepened for M3 x 12)"),
@@ -175,6 +176,8 @@ PARAMS = [
     ("wall_h", "44 mm", "mm", "base wall height above plate top"),
     ("knob_d", "24 mm", "mm", "tilt knob diameter"),
     ("knob_t", "10 mm", "mm", "tilt knob thickness"),
+    ("knob_floor_t", "3.9 mm", "mm", "knob under the bolt head (was 6.9: head sunk 3mm so an M3 x 30 reaches the nut behind the plate)"),
+    ("tilt_tip_relief_d", "6 mm", "mm", "bolt-tip hole depth in the base wall behind the nut pocket (the knuckle's goes through)"),
     ("kn_fb_t", "8 mm", "mm", "knuckle upright thickness"),
     ("kn_fa_l", "16 mm", "mm", "knuckle foot length behind the upright"),
     ("kn_fa_t", "6 mm", "mm", "knuckle foot thickness"),
@@ -183,6 +186,7 @@ PARAMS = [
     ("kn_sx1", "4 mm", "mm", "foot screw row 1, from the upright's back face"),
     ("kn_sx2", "12 mm", "mm", "foot screw row 2"),
     ("kn_sy", "15 mm", "mm", "foot screws half-spacing along the case height"),
+    ("kn_gusset_ang", "30 deg", "deg", "gusset slope off the foot (was 45: row-1 screws sat 9mm down their tunnels)"),
     # derived
     ("case_in_l", "pi_len + 2 * fit_board + edge_clear_r", "mm", "inner pocket length"),
     ("case_in_w", "pi_wid + 2 * fit_board + edge_clear_b", "mm", "inner pocket width"),
@@ -195,6 +199,7 @@ PARAMS = [
     ("tilt_r_out", "tilt_hub_d / 2", "mm", "tooth ring outer radius"),
     ("tilt_step", "360 deg / tilt_teeth", "deg", "angle per tooth"),
     ("yoke_off", "tilt_plate_t + tilt_tooth_h + arm_t / 2", "mm", "face to arm centreline"),
+    ("tilt_nut_pocket_d", "m3_nut_t + 0.3 mm", "mm", "tilt nut pocket depth, in the knuckle upright and base wall behind each plate"),
     ("ear_nut_d", "rim_h + bezel_h - 3.2 mm - (bezel_screw_l - 1 mm) + m3_nut_t", "mm",
      "ear nut pocket depth: an M3 x bezel_screw_l ends 1mm past the nut"),
     ("stylus_d", "4.88 mm", "mm", "MEASURED stylus barrel diameter (2026-09-13; was 5.0)"),
@@ -240,9 +245,10 @@ def newyz(): return root.sketches.add(root.yZConstructionPlane)
 def rect(sk,x0,y0,x1,y1): sk.sketchCurves.sketchLines.addTwoPointRectangle(pt(x0,y0),pt(x1,y1))
 def circ(sk,cx,cy,d): sk.sketchCurves.sketchCircles.addByCenterRadius(pt(cx,cy),c(d/2.0))
 
-def hexa(sk,cx,cy,af):
+def hexa(sk,cx,cy,af,a0=30.0):
+    """Hexagon across flats af; a0 = angle of the first vertex (30 puts one on sketch v, 0 on u)."""
     r = af / math.sqrt(3.0); L = sk.sketchCurves.sketchLines
-    ps=[pt(cx+r*math.cos(math.radians(60*i+30)), cy+r*math.sin(math.radians(60*i+30))) for i in range(6)]
+    ps=[pt(cx+r*math.cos(math.radians(60*i+a0)), cy+r*math.sin(math.radians(60*i+a0))) for i in range(6)]
     for i in range(6): L.addByTwoPoints(ps[i], ps[(i+1)%6])
 
 def profs(sk):
@@ -272,11 +278,11 @@ def mk(sk, z0, h, name):
 
 def cut(nm, sk, z0, h): _ext(sk, z0, h, CUT, bod(nm))
 
-def _merge(nm, newbodies):
+def _merge(nm, newbodies, op=None):
     tools = adsk.core.ObjectCollection.create()
     for b in newbodies: tools.add(b)
     ci = root.features.combineFeatures.createInput(bod(nm), tools)
-    ci.operation = FO.JoinFeatureOperation
+    ci.operation = FO.JoinFeatureOperation if op is None else op
     ci.isKeepToolBodies = False
     root.features.combineFeatures.add(ci)
 
@@ -448,11 +454,14 @@ if UP.itemByName('adp_hood').value > 0.5:
     sk=newsk(); rect(sk,ax0,yh0,ax1,W+1); cut(N,sk,FT,RH-FT+1)
 else:
     sk=newsk(); rect(sk,ax0,-1,ax1,W+1); cut(N,sk,FT,RH-FT+1)
-# USB-A: the blue USB3 stack only (GPS + antenna both fit in it).
-# usb2_open=1 adds the USB2 stack as ONE merged notch (separate notches would
-# leave a 0.3mm sliver of wall between them).
+# USB-A: the black USB2 stack only (GPS + antenna both fit in one stack, and a
+# USB2 port can't run SuperSpeed signalling next to a 2.4GHz radio).
+# Opening both stacks gives ONE merged notch: they sit 18mm apart and a 17.7mm
+# opening each would leave a 0.3mm sliver of wall between them.
 uw=max(P('usb_w'),P('usb_plug_w'))+2*FP
-ctrs=[P('usb3_ctr')]+([P('usb2_ctr')] if UP.itemByName('usb2_open').value>0.5 else [])
+ctrs=[P(k) for k,fl in (('usb3_ctr','usb3_open'),('usb2_ctr','usb2_open'))
+      if UP.itemByName(fl).value > 0.5]
+if not ctrs: raise RuntimeError('no USB stack opened: set usb2_open or usb3_open')
 u0=PY+min(ctrs)-uw/2; u1=PY+max(ctrs)+uw/2
 sk=newsk(); rect(sk,OL-W-1,max(W,u0),OL+1,u1); cut(N,sk,z0,RH-z0+1)
 # LCD's own USB-C (left edge, on the Pi-facing side of the LCD board): open-top
@@ -491,7 +500,7 @@ cut(N,sk,0,P('case_tap_d'))
 # between the Pi and the LCD. Vertical so each slot only bridges its own width when
 # the case prints back-down. Enforced: ribs >= vent_rib, solid bands >= vent_band
 # at floor and rim, >= vent_corner at corners, >= vent_rib from every opening.
-# Right wall skipped (USB2 stack + ethernet jack sit against it); floor untouched
+# Right wall skipped (the unopened USB stack + ethernet jack sit against it); floor untouched
 # (it carries the mount load through the knuckle).
 vw=P('vent_w'); vrb=P('vent_rib'); vbd=P('vent_band'); vcn=P('vent_corner'); vpitch=vw+vrb
 def vslots(lo,hi):
@@ -643,7 +652,10 @@ for dx in (-BX,BX):
     for dy in (-BY,BY): circ(sk,dx,dy,P('m3_head_d')+0.4)
 cut(N,sk,TT-2.5,3)
 sk=newsk(); circ(sk,0,0,P('m3_clear')); cut(N,sk,-1,TT+TH+2)
-sk=newsk(); hexa(sk,0,0,P('m3_nut_af')+0.2); cut(N,sk,0,P('m3_nut_t')+0.3)
+# No nut pocket here. The nut pulls toward the arm while the arm pushes back on the
+# tooth ring, so the centre is loaded in bending; with a pocket it was a 2.7mm web
+# over a bridged, sagging ceiling and it caved in. The nut now sits in a pocket in
+# the knuckle / base wall and bears on this plate's solid, bed-side back face.
 place(N,0.0,200.0)
 r=report(N); r['teeth']=n
 return r
@@ -687,8 +699,15 @@ tz=PVZ+BX; twall=WTB-(WTB-WTT)*(tz-(BT-1))/(WH+1)   # wall thickness at the uppe
 if P('base_tap_d') > twall-1.5: raise RuntimeError('base_tap_d %.1f too deep for %.1f wall' % (P('base_tap_d'),twall))
 i=f.createInput(profs(skh),CUT); i.setDistanceExtent(False,vr(-P('base_tap_d')*ydir))
 i.participantBodies=[bod(N)]; f.add(i)
+pwall=WTB-(WTB-WTT)*(PVZ-(BT-1))/(WH+1)                 # wall thickness at the pivot
+if P('tilt_tip_relief_d') > pwall-2.0: raise RuntimeError('tilt_tip_relief_d %.1f too deep for %.1f wall' % (P('tilt_tip_relief_d'),pwall))
 skr=newxz(); u,v=skp(MXZ,0,0,PVZ); circ(skr,u,v,5)
-i=f.createInput(profs(skr),CUT); i.setDistanceExtent(False,vr(-6.0*ydir))
+i=f.createInput(profs(skr),CUT); i.setDistanceExtent(False,vr(-P('tilt_tip_relief_d')*ydir))
+i.participantBodies=[bod(N)]; f.add(i)
+# Tilt nut pocket behind the plate centre, one hex vertex up (the wall prints
+# vertical, so the pocket roof is self-supporting instead of a flat bridge)
+skn=newxz(); hexa(skn,u,v,P('m3_nut_af')+0.2,0.0 if MXZ[0]==2 else 30.0)
+i=f.createInput(profs(skn),CUT); i.setDistanceExtent(False,vr(-P('tilt_nut_pocket_d')*ydir))
 i.participantBodies=[bod(N)]; f.add(i)
 bb=bod(N).boundingBox
 hz=(bb.maxPoint.z-bb.minPoint.z)*10; hy=(bb.maxPoint.y-bb.minPoint.y)*10
@@ -709,9 +728,14 @@ for i in range(8):
 cut(N,sk,-1,KT+2)
 sk=newsk(); circ(sk,0,0,P('m3_clear')); cut(N,sk,-1,KT+2)
 # Round pocket on the OUTER face: the tilt bolt's socket head presses in here, so
-# turning the knob turns the bolt into the nut captured in the tilt plate. (A hex
-# nut pocket here meant a round head would just spin.)
-sk=newsk(); circ(sk,0,0,P('m3_head_d')+0.1); cut(N,sk,KT-P('m3_head_h')-0.1,P('m3_head_h')+1.2)
+# turning the knob turns the bolt into the nut captured behind the tilt plate. (A hex
+# nut pocket here meant a round head would just spin.) The head sits deep, knob_floor_t
+# above the bottom face, so an M3 x 30 still passes through that nut: a tight seat
+# exactly one head tall, with a free lead-in above it.
+KF=P('knob_floor_t'); HH=P('m3_head_h'); HD=P('m3_head_d')
+if KF < 3.0 or KF+HH > KT: raise RuntimeError('knob_floor_t %.1f: need >= 3 and head inside a %.1f knob' % (KF,KT))
+sk=newsk(); circ(sk,0,0,HD+0.1); cut(N,sk,KF,KT-KF+1)
+sk=newsk(); circ(sk,0,0,HD+0.6); cut(N,sk,KF+HH,KT-KF-HH+1)
 place(N,200.0,200.0)
 return report(N)
 '''
@@ -793,7 +817,8 @@ X['pi_power_plug']=box(uc-P('usbc_plug_w')/2,uc+P('usbc_plug_w')/2,-30,PY-2.0,
 for nm_,k_ in (('usb2_stack','usb2_ctr'),('usb3_stack','usb3_ctr')):
     X[nm_]=box(PX+L85-17.5,PX+L85+2.5,PY+P(k_)-7.5,PY+P(k_)+7.5,PCT,PCT+16)
 X['ethernet']=box(PX+L85-21,PX+L85+3,PY+P('eth_ctr')-8,PY+P('eth_ctr')+8,PCT,PCT+13.5)
-u3=PY+P('usb3_ctr'); upw=P('usb_plug_w')
+uop=P('usb2_ctr') if UP.itemByName('usb2_open').value>0.5 else P('usb3_ctr')
+u3=PY+uop; upw=P('usb_plug_w')   # the plugs go in whichever stack is open
 X['usb_plugs_gps_antenna']=box(PX+L85+3,PX+L85+40,u3-upw/2,u3+upw/2,PCT,PCT+16)
 X['av_jack']=box(PX+P('av_ctr')-3.5,PX+P('av_ctr')+3.5,PY-2,PY+12,PCT,PCT+6)
 sdc=PY+P('sd_ctr'); sz=PB-P('sd_below')+0.2
@@ -852,9 +877,11 @@ for lbl,L_,und,dep in (('knuckle to case',P('kn_case_screw_l'),P('kn_fa_t')-2.5,
                        ('base plate',P('base_plate_screw_l'),under,P('base_tap_d'))):
     e=L_-und
     fz['%s M3x%g' % (lbl,L_)]={'thread_engaged_mm':round(e,2),'depth_available_mm':dep,'ok':2.5<=e<=dep-0.3}
-stk=(P('knob_t')-P('m3_head_h')-0.1)+P('tilt_washer_t')+P('arm_t')+P('tilt_tooth_h')+TT_
-tip=P('tilt_bolt_l')-stk          # past the plate's back face, into the relief
-fz['tilt bolt M3x%g' % P('tilt_bolt_l')]={'tip_past_plate_mm':round(tip,2),'ok':-0.3<=tip<=4.5}
+stk=P('knob_floor_t')+P('tilt_washer_t')+P('arm_t')+P('tilt_tooth_h')+TT_   # head seat to plate back face
+tip=P('tilt_bolt_l')-stk          # past the plate's back face: through the nut pocket, into the relief
+npd=P('tilt_nut_pocket_d')        # the tip must clear the nut wherever it sits in its pocket
+fz['tilt bolt M3x%g' % P('tilt_bolt_l')]={'tip_past_plate_mm':round(tip,2),'nut_pocket_mm':round(npd,2),
+    'ok':npd+0.5<=tip<=min(P('tilt_tip_relief_d'),P('kn_fb_t'))-0.3}
 ok=(not hits) and all(v['nub_on_actuator_mm3']>0 and abs(v['case_back_in_the_way_mm3'])<=0.05
                       for v in press.values()) and all(v['ok'] for v in fz.values())
 return {'PASS': ok, 'collisions_mm3': hits, 'flex_button_press': press, 'fasteners': fz,
@@ -875,10 +902,14 @@ if hx < P('arm_w')/2.0+2.0: raise RuntimeError('kn_h too small: arm end would hi
 sk=newsk(); rect(sk,-fal,-kw/2,fbt,kw/2); mk(sk,-fat,fat,N)          # foot
 sk=newsk(); rect(sk,0,-kw/2,fbt,kw/2); addto(N,sk,-fbh,fbh)         # upright
 MXZ=planemap(root.xZConstructionPlane); g=fal-2.0
+gh=(g+0.5)*math.tan(math.radians(PD('kn_gusset_ang')))             # gusset rise up the upright
 sk=newxz(); L=sk.sketchCurves.sketchLines
-q=[pt(*skp(MXZ,x,0,z)) for x,z in [(-g,-fat+0.5),(0.5,-fat+0.5),(0.5,-fat-g)]]
+q=[pt(*skp(MXZ,x,0,z)) for x,z in [(-g,-fat+0.5),(0.5,-fat+0.5),(0.5,-fat+0.5-gh)]]
 for k in range(3): L.addByTwoPoints(q[k],q[(k+1)%3])
 addtosym(N,sk,kw)                                                   # gusset
+# How far the driver reaches down each screw tunnel, gusset surface to screw-head top
+htop=fat-2.5+P('m3_head_h')
+tun={('x%g' % sx):round(max(0.0,gh*(g-sx)/(g+0.5)-0.5-(htop-fat)),1) for sx in (P('kn_sx1'),P('kn_sx2'))}
 MYZ=planemap(root.yZConstructionPlane)
 sk=newyz()
 for dy in (-BY,BY):
@@ -887,6 +918,21 @@ for dy in (-BY,BY):
 u,v=skp(MYZ,0,0,-hx); circ(sk,u,v,5)                                 # bolt-tip relief
 f=root.features.extrudeFeatures; i=f.createInput(profs(sk),CUT)
 i.setSymmetricExtent(vr(2*fbt),True); i.participantBodies=[bod(N)]; f.add(i)
+# Tilt nut pocket in the plate face (x=fbt), one vertex along z so its roof is
+# self-supporting when the knuckle prints foot-down. The YZ sketch plane sits at
+# x=0, so cut with a symmetric tool body moved out to the face.
+pd=P('tilt_nut_pocket_d')
+if pd > fbt-2.0: raise RuntimeError('nut pocket %.1f leaves < 2mm of the %.1f upright' % (pd,fbt))
+before=set(b.name for b in root.bRepBodies)
+sk=newyz(); u,v=skp(MYZ,0,0,-hx); hexa(sk,u,v,P('m3_nut_af')+0.2,0.0 if MYZ[0]==2 else 30.0)
+i=f.createInput(profs(sk),NEW); i.setSymmetricExtent(vr(pd+1.0),True); f.add(i)
+oc=adsk.core.ObjectCollection.create()
+for b in root.bRepBodies:
+    if b.name not in before: oc.add(b)
+mf=root.features.moveFeatures; mi=mf.createInput2(oc)
+m=adsk.core.Matrix3D.create(); m.translation=adsk.core.Vector3D.create(c(fbt+(1.0-pd)/2.0),0,0)
+mi.defineAsFreeMove(m); mf.add(mi)
+_merge(N,[b for b in root.bRepBodies if b.name not in before],FO.CutFeatureOperation)
 sk=newsk()
 for sx in (P('kn_sx1'),P('kn_sx2')):
     for sy in (-P('kn_sy'),P('kn_sy')): circ(sk,-sx,sy,P('m3_head_d')+1.0)
@@ -896,7 +942,7 @@ for sx in (P('kn_sx1'),P('kn_sx2')):
     for sy in (-P('kn_sy'),P('kn_sy')): circ(sk,-sx,sy,P('m3_clear'))
 cut(N,sk,-fat-0.5,fat+1.5)
 place(N,60.0,200.0)
-r=report(N); r['axis_behind_case_back_mm']=round(hx,2)
+r=report(N); r['axis_behind_case_back_mm']=round(hx,2); r['head_depth_in_tunnel_mm']=tun
 return r
 '''
 

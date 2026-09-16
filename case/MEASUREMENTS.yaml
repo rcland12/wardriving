@@ -248,7 +248,9 @@ usb_devices:
     # Wifi adapters are often much fatter than the plug. If yours has
     # a big body or an RP-SMA stub, say so here.
     notes: { value: null, src: MEASURE }
-  # Both plugs fit in the blue USB3 stack at the same time (tested).
+  # Both plugs fit in one stack at the same time (tested in the blue USB3 stack).
+  # The case now opens the BLACK USB2 stack instead: same connector, same 15 x 16 opening
+  # per the datasheet, 18mm nearer the power edge. USB2 keeps SuperSpeed noise off 2.4GHz.
 
 # ---------------------------------------------------------------------
 # I. THE CAR  -  console, arm, clearances
@@ -286,7 +288,7 @@ hardware:
   bezel_screw: { value: "M3", src: choice }
   bezel_screw_len: { value: 30.00, src: choice } # M3 x 30: ear nut pockets are sunk to suit
   tilt_bolt: { value: "M3", src: choice }
-  tilt_bolt_len: { value: 30.00, src: choice } # M3 x 30 socket head; head presses into the knob
+  tilt_bolt_len: { value: 30.00, src: choice } # M3 x 30 socket head (longest on hand); head sunk into the knob, nut behind the tilt plate
   plate_screw_case_len: { value: 8.00, src: choice }  # M3 x 8 x8: knuckle foot to case back (4) + top tilt plate to knuckle (4)
   plate_screw_base_len: { value: 12.00, src: choice }  # M3 x 12, tapped 10mm into the base wall (no M3 x 10 on hand)
   # Measure one of YOUR nuts and washers - brands vary.

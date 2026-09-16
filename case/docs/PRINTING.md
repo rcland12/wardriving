@@ -29,7 +29,7 @@ Back to the [case guide](../README.md).
 |---|---|---|---|---|---|
 | `back` | 1 | As exported: back face down | optional | — | ~30–35 g |
 | `bezel` | 1 | **Flip 180°**: front face down, button tabs and stylus tube pointing up | optional | **Line width 0.40 mm** | ~13–15 g |
-| `tilt_plate` | **2** | As exported: teeth up | yes | — | ~8 g each |
+| `tilt_plate` | **2** | As exported: teeth up | yes | **Infill 100 %** | ~10 g each |
 | `arm` | 1 | Lying flat, teeth up, **rotated 45°** (246 mm won't fit straight) | yes | Infill 40 % (optional) | ~90–100 g |
 | `base` | 1 | As exported: plate down, wall up | yes | Infill 40 % (optional) | ~45–55 g |
 | `knob` | **2** | As exported: bolt-head pocket up | no | — | ~3 g each |
@@ -60,6 +60,9 @@ In Cura: right-click a model → Per Model Settings.
 - **Bezel: line width 0.40 mm.** The flex buttons are 1.2 mm thick, which is exactly
   three lines at 0.40 but two lines plus gap fill at 0.42. This is the override that
   matters.
+- **Tilt plate: infill 100 %.** Tightening the knob bends the middle of the plate
+  between the nut and the tooth ring. At 25 % that 5.4 mm centre is two thin skins
+  over sparse gyroid. Solid, it's far stiffer, for about 2 g more per plate.
 - **Arm and base: infill 40 %.** Optional; they carry the load, but with 4 walls, 25 %
   is already adequate.
 - **Brim on the tall and long parts.** The knuckle stands 44 mm tall and the arm is long
@@ -92,10 +95,13 @@ They need no supports. If a slot top sags slightly, it doesn't matter structural
 1. **Form the threads.** Run an M3 screw slowly into each tapped hole and back it out:
    four in the case floor, four in the knuckle's upright, four in the base wall. This
    stops a screw from splitting a part during assembly.
-2. **Press the nuts in:** four in the case-back ear pockets, one in the centre pocket of
-   each tilt plate. They should be snug; use a drop of CA glue if one is loose.
-3. **Press a bolt head into each knob.** If it's tight, warm the screw head briefly with a
-   soldering iron and push it in.
+2. **Press the nuts in:** four in the case-back ear pockets, and one each in the hex
+   pockets on the knuckle's upright and the base wall, where the tilt plates' centres
+   land. (The tilt plates have no nut pocket.) They should be snug; use a drop of CA
+   glue if one is loose.
+3. **Seat a bolt head in each knob.** The head slides 3 mm down a loose lead-in, then
+   presses into a tight seat. Pull it home with a nut and washer on the thread, or warm
+   the head briefly with a soldering iron and push it in.
 4. **Check fit with the real hardware:** the microSD slit and the port openings, before
    final assembly.
 
